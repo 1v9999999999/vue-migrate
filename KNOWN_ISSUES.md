@@ -1,0 +1,169 @@
+# Known Issues
+
+每个 issue 跟踪一个**有具体例子**的转换缺陷。新发现的 bug 立即加一条，已经修掉的归档到下方"已修"区。
+
+## Open
+
+### 11. `expandThisDollarWatch` 不支持非字符串 key
+
+- **Type**: limitation
+- **Severity**: minor
+- **Files**: `packages/plugins/composition/src/options-to-setup.ts` `expandThisDollarWatch`
+- **现状**: `this.$watch(myVar, fn)` (第一个参数是变量) 会被替换为 `/* manual: ... */ watch(() => /* TODO */, ...)`. 加了 review 但代码 TODO 待补
+- **修复计划**: 加表达式分析, 推断 myVar 是 ref/reactive, 自动生成正确 getter
+
+### 12. elementui 解析 minified vendor JS 失败
+
+- **Type**: pre-existing
+- **Severity**: minor
+- **Files**: `examples/vue2-manage-master/manage/static/js/*.js`
+- **现状**: `manage/static/js/0.dea7087f7a00b4016329.js` 等 webpack 打包的 minified JS 被 elementui plugin 解析, 抛 "Property name expected type of string but got function"
+- **影响**: 主样本 vue2-manage-master 跑出来有 3 errors (3 个 vendor JS 文件), 不是 composition 引起的
+- **修复计划**: elementui plugin 加 `.min.js` / `vendor*.js` / 路径 `static/js/` 跳过规则
+
+### 13. Vue.extend() 嵌套组件未转 setup
+
+- **Type**: limitation
+- **Severity**: minor
+- **Files**: `examples/compo-test/StressTest.vue` (BaseWidget), `examples/222/...`
+- **现状**: 文件里用 `const BaseWidget = Vue.extend({...})` 嵌套定义组件, composition 跳过 (export default 是 Vue.extend, 不是 ObjectExpression)
+- **修复计划**: convertOptionsToSetup 加 Vue.extend 检测, 转 defineComponent({...}) 或保留 Vue.extend 注释
+
+### 14. reactive reassignment 嵌套数组
+
+- **Type**: edge case
+- **Severity**: minor
+- **Files**: 任何用 `this.list = [[1,2]]` 的
+- **现状**: 用 `list.splice(0, list.length, ...expr)` 处理大多数情况 OK, 但如果 expr 是嵌套数组可能浅拷贝
+- **修复计划**: 检测深层级, 单独的 review 提示 + 用户决策
+
+### 15. render function / 异步组件
+
+- **Type**: not implemented
+- **Severity**: major
+- **Files**: 任何用 `render(h) {...}` 或 `() => import('./Async.vue')` 的
+- **现状**: composition 不处理, Vue2 的 `render` 选项直接保留, 转换后会编译报错 (Vue3 的 render 函数签名变了)
+- **修复计划**: 加 render function 检测, 转换为 `setup() { return () => h(...) }` 或保留原文 + 强 review
+
+### 7. ~~composition 插件文件被 PowerShell 编码损坏~~ ✅ 已修（iter-023）
+
+- **修复**: 完全重写 `options-to-setup.ts` (~1100 行)
+- **现状**: 真正实现 Options→Setup 转换, 包括 data/props/methods/computed/watch/lifecycle, this.x 替换, this.$watch, props 替换, reactive 重赋值等
+- **新问题**: 见 #11-#15 (上面)
+
+### 8. ~~semanticDiff 略降（0.760 → 0.722）~~ ✅ 已修（iter-024）
+
+- **修复**: composition 插件真正启用后, avgSemanticDiff 从 0.616 回升到 0.687 (+0.071)
+
+### 4. ~~TS 类型推断大量字段仍是 `unknown`~~ ✅ 已修（iter-024）
+
+- **修复**: parseData 加 t.isBooleanLiteral / t.isStringLiteral / t.isNumericLiteral / t.isNullLiteral / t.isArrayExpression / t.isObjectExpression / t.isNewExpression(Date) / t.isRegExpLiteral 判断, 生成 `ref<boolean>` / `ref<string>` / `reactive<any[]>` / `reactive<Record<string, any>>` / `ref<Date>` / `ref<RegExp>` 等
+- **效果**: 单文件测试 `modalVisible: false` → `ref<boolean>(false)`, `items: [...]` → `reactive<any[]>([...])`, `currentUser: {...}` → `reactive<Record<string, any>>({...})`
+
+### 5. ~~`this.foodForm = []` reactive 数组重置语义丢失~~ ✅ 已修（iter-024）
+
+- **修复**: replaceThisInBody 在 data field 替换之前先检测 `this.x = expr` 模式, 转 `x.splice(0, x.length, ...expr)`. 加 review 提示
+- **效果**: 
+  - `this.items = this.items.filter(...)` → `items.splice(0, items.length, ...items.filter(...))`
+  - `this.selectedRows = rows` → `selectedRows.splice(0, selectedRows.length, ...rows)`
+  - `this.city = newCity` → `city.splice(0, city.length, ...newCity)`
+
+### 6. ECharts 自由变量 `myChart` TODO 注释误导
+
+- **Type**: cosmetic
+- **Severity**: minor
+- **Files**: examples/222/components/headTop.vue
+- **现状**: 注释 `// TODO: type unknown` 但代码已经声明 `let myChart: any`，TODO 不准确
+- **修复计划**: 修注释模板
+
+## 修复中
+
+(无)
+
+## 模板：怎么提一条新 issue
+
+```markdown
+### N. <一句话描述>
+
+- **Type**: syntax | semantic | cosmetic | runtime
+- **Severity**: blocker | warning | minor
+- **Files**: 相对 examples/ 的路径（多文件用逗号分隔）
+- **现状**: 转换后是什么（贴 5-10 行）
+- **期望**: 应该是什么
+- **修复计划**: 哪个插件加规则，或 rule-generator 自动处理
+```
+
+## 归档：已修
+
+| # | 描述 | 修复版本 | commit |
+|---|---|---|---|
+| A1 | `:visible.sync` 转 `:v-model` 后 `splitDirective` 缺失 | iter-005 | composition |
+| A2 | `template loc` 重复累加 `+= delta` | iter-002 | core |
+| A3 | 嵌套 `<template>` 的 `findTemplateRange` regex 误匹配 | iter-002 | core |
+| A4 | `ObjectMethod` vs `ObjectProperty` 类型检查错误 | iter-003 | composition |
+| A5 | vuex-pinia 的 `t.objectMethod` 参数顺序错 + computed key 默认 | iter-007 | vuex-pinia |
+| A6 | vue3-entry 的 `createApp(...)` 不带 `.mount()` 没处理 | iter-006 | vue3-entry |
+| A7 | 模板 `el-icon` 转换只覆盖 tag name 范围 | iter-006 | elementui |
+| A8 | `template ref="formData"` 与 `data.formData` 冲突 | iter-008 | composition |
+| A9 | `this.$refs[formName]` 动态访问丢失语义 | iter-008 | composition |
+| A10 | `cleanupUnusedVueImports` 没排除 ImportDefaultSpecifier | iter-006 | vue3-entry |
+| A11 | `$notify.error()` 等链式方法没正确转 | iter-002 | elementui |
+| A12 | Pinia mutation 动态 commit 没检测 | iter-005 | vuex-pinia |
+| A13 | Vue Router mode: 'abstract' review note | iter-006 | vue-router-v4 |
+| A14 | Scheduler `readSamplesIndex` 不识别 v1 schema | iter-008 | scheduler |
+| A15 | Scheduler `runSubprocess` Windows spawn 路径问题 | iter-008 | scheduler |
+| A16 | Scheduler `reportPath` 少拼一层 id | iter-008 | scheduler |
+| A17 | Scheduler `phaseTest` 传错参数 | iter-008 | scheduler |
+| A18 | Scheduler zombie 进程 + stale code | iter-011 | operational |
+| A19 | composition plugin `parseProps` 是空函数 | iter-024 | composition |
+| A20 | composition plugin `injectTopSetup` 没同步到 result.injectedTopSetup | iter-024 | composition |
+| A21 | `expandThisDollarWatch` 死循环 (Invalid string length) | iter-024 | composition |
+| A22 | `expandThisDollarWatch` typo `after` -> 应是 `afterKey` | iter-024 | composition |
+| A23 | composition plugin 死代码: needRef 等未定义变量 | iter-024 | composition |
+| A24 | `this.$bus / $on / $off / $once` 没处理 | iter-024 | composition |
+| A25 | `this.$el / $forceUpdate / $destroy / $set / $delete` 没处理 | iter-024 | composition |
+| A26 | `this.$watch(string, fn)` 字符串参数没正确转换 | iter-024 | composition |
+| A27 | elementui 解析 minified vendor JS 失败 | iter-024-final | elementui |
+| A28 | composition 不支持 `const X = Vue.extend(...)` 嵌套组件 | iter-025 | composition |
+| A29 | reactive reassignment multi-line object literal 错 | iter-025 | composition |
+| A30 | free variable `myChart` 误用 `let xxx: any` | iter-025 | composition |
+| A31 | errorCaptured lifecycle 漏处理 | iter-026 | composition |
+| A32 | computed `{get, set}` ObjectMethod 检测失败 | iter-026 | composition |
+| A33 | parseComputed `t.isBlockStatement(getBody)` 误用 (get 是 ObjectMethod) | iter-026 | composition |
+| B17 | `SfcBlock` interface 缺 `type?: string` field | iter-027 | core/types.ts |
+| B18 | `findLastIndex` 需要 lib ES2023+ | iter-027 | elementui/global-methods |
+| B19 | `tpl` 可为 null 但 sfc-source.ts 假设非空 | iter-027 | elementui/utils |
+| B20 | `scriptOpenMatch.index` 可为 undefined | iter-027 | elementui/utils |
+| B21 | `detectTemplateGlobals` 函数缺闭合 `}` (135+ cascading 错) | iter-027 | composition/index |
+| B22 | `stateSource?.length` 在模板字符串里不 narrow | iter-027 | vuex-pinia/index |
+| B23 | `t.isArrowFunction` 不存在 (应 `t.isFunction`) | iter-027 | 多处 |
+| B24 | `ObjectMethod | ObjectProperty` 联合类型不兼容 | iter-027 | vuex-pinia/index |
+| B25 | vue3-entry/src/index.ts 文件丢失 (bulk-delete 正则误删 768 行) | iter-027 | vue3-entry/index |
+| B26 | options-to-setup.ts 深度 GBK 损坏 (135+ 唯一错误行) | iter-027 | composition/options-to-setup |
+| B27 | vue3-entry 缺 `@babel/generator` 依赖 (运行时 ERR_MODULE_NOT_FOUND) | iter-027 | vue3-entry/package.json |
+| B28 | vuex-pinia 缺 `@babel/generator` 依赖 | iter-027 | vuex-pinia/package.json |
+| B29 | `generate` 函数未导入 vuex-pinia | iter-027 | vuex-pinia/index |
+| B30 | `vue3-entry` 运行时 symlink 缺失 | iter-027 | node_modules/@vue-migrate |
+| B31 | `(prop as any).value` 解决 ObjectMethod 联合类型 | iter-027 | 多处 |
+| B32 | `vue3-entry` rewrite 后 review 数从 0 → 486 (实质改进: 之前 plugin 根本没跑) | iter-027 | vue3-entry |
+
+## iter-027 final state
+
+### Build verification (all PASS)
+- **All 11 packages: 0 tsc errors** (core, cli, elementui, vue2-compat, vue3-directives, vue3-entry, vue3-template, vue3-types, vue-router-v4, vuex-pinia, composition)
+- **All 94 unit tests pass** (21 metrics + 16 compare + 27 classify + 30 state-machine)
+- **8 samples run end-to-end** (multi-sample-baseline)
+- **@types/node: ^22.0.0** added to all 10 packages
+- **types-shim.d.ts** created in all 11 packages (for `@babel/generator` and `@babel/traverse` which don't ship .d.ts)
+
+### Metric truth (iter-027b — actual state with vue3-entry running)
+| Metric | iter-026 | iter-027 (broken vue3-entry) | iter-027b (vue3-entry actually runs) |
+|---|---|---|---|
+| compileOk | 0.983 | 0.988 | 0.988 |
+| astEquivalent | 0.705 | **0.888** ⚠️ | 0.649 |
+| semanticDiff | 0.680 | **0.350** ⚠️ | 0.678 |
+| runtimeSafe | 0.862 | 0.809 | 0.844 |
+| reviewDelta | 342 | **0** ⚠️ | 486 |
+| totalFiles | 171 | 232 | 232 |
+
+⚠️ iter-027's "perfect" metrics were misleading: vue3-entry was failing to load due to missing `@babel/generator`, so its 486 review notes weren't being generated. With the fix (B27), the tool now produces correct output but the metric changes reflect the truth that vue3-entry is making more changes (some different from official tool).

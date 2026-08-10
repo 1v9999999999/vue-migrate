@@ -1,0 +1,25 @@
+{
+  "name": "@vue-migrate/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "vue-migrate": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@vue-migrate/plugin-vue2-compat": "workspace:*",
+    "@vue-migrate/plugin-vue3-entry": "workspace:*",
+    "@vue-migrate/plugin-vue3-directives": "workspace:*",
+    "@vue-migrate/plugin-vue3-template": "workspace:*",
+    "@vue-migrate/plugin-vue3-types": "workspace:*",
+    "@vue-migrate/plugin-elementui": "workspace:*",
+    "@vue-migrate/plugin-composition": "workspace:*",
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

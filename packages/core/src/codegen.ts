@@ -1,0 +1,118 @@
+/**
+ * Codegen —— 把修改后的 AST 还原成源码
+ * 
+ * 设计原则：
+ * - 对 .vue 文件：只重新生成 script 块，template/style 原样保留
+ * - 保留源码风格（缩进、引号）通过 generator options 控制
+ * - 重写后必须能再次解析（自检）
+ */
+
+import _generate from '@babel/generator'
+import { parse as parseSfcForCheck } from '@vue/compiler-sfc'
+import { parse as parseBabelForCheck } from '@babel/parser'
+import type { FileNode, ProjectContext } from './types.js'
+
+// @babel/generator 在 ESM 下是具名导出，兼容 default
+const generate = (_generate as any).default || _generate
+
+const GENERATOR_OPTIONS = {
+  // 注意：retainLines=true 会让输出格式很丑（大量空行、单行挤一起）
+  // 改成 false 让 generator 按 AST 结构输出，prettier 友好
+  retainLines: false,
+  comments: true,
+  compact: false,
+  jsescOption: {
+    minimal: true, // 尽量少转义
+  },
+  concise: false,
+}
+
+/** 重新生成单个文件 */
+export function codegenFile(file: FileNode): string {
+  if (file.useRawSource) {
+    return file.source
+  }
+  if (file.kind === 'vue') {
+    return codegenVueFile(file)
+  }
+  // 普通 JS/TS
+  if (!file.scriptAst) return file.source
+  const result = generate(file.scriptAst as any, GENERATOR_OPTIONS)
+  return result.code + '\n'
+}
+
+function codegenVueFile(file: FileNode): string {
+  const sfc = file.sfc
+  if (!sfc) return file.source
+
+  // 如果插件标记了 useRawSource（如 composition 插件），直接用
+file.source
+  if (file.useRawSource) {
+    return file.source
+  }
+
+  const source = file.source
+  const newScriptContent = sfc.script && file.scriptAst
+    ? (generate(file.scriptAst as any, GENERATOR_OPTIONS).code)
+    : sfc.script?.content
+
+  if (!sfc.script || !newScriptContent) {
+    return source
+  }
+
+  const start = sfc.script.loc.start.offset
+  const end = sfc.script.loc.end.offset
+
+  return (
+    source.slice(0, start) +
+    newScriptContent +
+    source.slice(end)
+  )
+}
+
+/** 自检：生成的代码能再次解析（避免插件写出语法错误） */
+export function selfCheck(file: FileNode): { ok: boolean; error?: string } {
+  const output = codegenFile(file)
+  try {
+    if (file.kind === 'vue') {
+      parseSfcForCheck(output, { filename: file.path })
+    } else {
+      parseBabelForCheck(output, { sourceType: 'module' })
+    }
+    return { ok: true }
+  } catch (e: any) {
+    return { ok: false, error: e.message }
+  }
+}
+
+export async function codegenProject(ctx: ProjectContext): Promise<Map<string, string>> {
+  const results = new Map<string, string>()
+  for (const file of ctx.files.values()) {
+    if (file.changed) {
+      try {
+        const code = codegenFile(file)
+        const check = selfCheck({ ...file, source: code, changed: false })
+        if (check.ok) {
+          results.set(file.path, code)
+        } else {
+          file.transforms.push({
+            plugin: 'core/codegen',
+            message: 'self-check failed, skipping',
+            changed: false,
+            error: check.error,
+          })
+          ctx.stats.errors++
+        }
+      } catch (e: any) {
+        file.transforms.push({
+          plugin: 'core/codegen',
+          message: 'codegen error',
+          changed: false,
+          error: e.message,
+        })
+        ctx.stats.errors++
+      }
+    }
+  }
+  return results
+}

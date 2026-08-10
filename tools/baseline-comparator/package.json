@@ -1,0 +1,22 @@
+{
+  "name": "@vue-migrate/baseline-comparator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Compare vue-migrate's output against the official Vue codemod (vue-codemod) to measure relative quality",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "tsx --test src/__tests__/metrics.test.ts"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.25.0",
+    "@babel/parser": "^7.25.0",
+    "@babel/traverse": "^7.25.0",
+    "vue-codemod": "^0.0.5"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.20.6",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

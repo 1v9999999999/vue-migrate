@@ -1,0 +1,47 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+.vue-migrate-backup/
+.idea/
+
+# Build / runtime artifacts
+baselines/
+work/
+dist-publish/
+
+# Debug / scratch (kept locally for diagnostics, not for source control)
+_dbg/
+_dbg2/
+_trash/
+_old_*/
+.worktrees/
+*.bak
+
+# Editor / OS
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+
+# Test outputs / coverage
+coverage/
+*.tsbuildinfo
+
+# Debug .vue / .js files generated during iter development
+/_debug_*.vue
+/_debug_*.txt
+/_debug_*.js
+/_debug_*.vue.txt
+/.debug_*.vue
+/.debug_*.txt
+/debug-vue.ts
+/debug.mjs
+/find-listeners.mjs
+/find-listeners.ts
+/fix-composition-loop.py
+/fix-composition.py
+/fix-loop.ps1
+/fix-trailing.ps1
+/test-comp.mjs
+/_debug_food.vue

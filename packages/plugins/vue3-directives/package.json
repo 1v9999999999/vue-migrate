@@ -1,0 +1,17 @@
+{
+  "name": "@vue-migrate/plugin-vue3-directives",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Migrate custom directives, filters and Vue2-specific template features (keycode, v-if/v-for, :value+@input, keep-alive include) to Vue3 idioms.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

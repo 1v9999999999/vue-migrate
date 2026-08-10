@@ -1,0 +1,14 @@
+{
+  "name": "@vue-migrate/regression-suite",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Regression test suite for vue-migrate — golden set of N files, run transform, compare hash against baseline, raise RegressionError on >5% pass-rate drop.",
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test src/__tests__/*.test.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

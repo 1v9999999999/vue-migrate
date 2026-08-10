@@ -1,0 +1,19 @@
+{
+  "name": "@vue-migrate/plugin-vuex-pinia",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "P0 Vuex 3 → Pinia migration: new Vuex.Store → defineStore, mutations merge into actions, import path update.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/parser": "^7.25.0",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0",
+    "@babel/generator": "^7.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

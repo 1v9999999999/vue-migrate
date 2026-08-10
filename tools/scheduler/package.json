@@ -1,0 +1,25 @@
+{
+  "name": "@vue-migrate/scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "vue-migrate self-evolution scheduler: state machine + persistence + cron-like trigger + agent dispatch",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts start",
+    "run-once": "tsx src/index.ts run-once",
+    "status": "tsx src/index.ts status",
+    "reset": "tsx src/index.ts reset",
+    "pause": "tsx src/index.ts pause",
+    "resume": "tsx src/index.ts resume",
+    "test": "tsx --test src/__tests__/state-machine.test.ts"
+  },
+  "dependencies": {
+    "node-cron": "3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "20.11.30",
+    "@types/node-cron": "3.0.11",
+    "tsx": "4.7.0",
+    "typescript": "5.4.5"
+  }
+}

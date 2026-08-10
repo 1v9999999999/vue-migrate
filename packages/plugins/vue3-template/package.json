@@ -1,0 +1,17 @@
+{
+  "name": "@vue-migrate/plugin-vue3-template",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Migrate Vue2 template & script features to Vue3 idioms: slot/slot-scope rewriting, v-bind.sync → v-model:xxx, inline-template removal, $scopedSlots → $slots, $on/$off/$once → mitt, $listeners → $attrs, $children review.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
