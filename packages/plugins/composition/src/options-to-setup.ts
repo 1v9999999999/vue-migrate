@@ -161,6 +161,12 @@ export function convertOptionsToSetup(
   if (!file.scriptAst)
   return result
 
+  // iter-040: 决定输出是否带 TS 泛型
+  //   - <script lang="ts"> → isTs = true, 保留 ref<T>/reactive<T>/defineEmits<T> 泛型
+  //   - <script> 或 <script lang="js"> → isTs = false, 输出纯 JS 风格 (无 <T> 泛型)
+  // 关键: 用户源是 JS 时不要加 TS 类型, 否则会出现 reactive<any[]>([]) 之类的转换
+  const isTs = (file.sfc?.script?.lang === 'ts' || file.metadata?.lang === 'ts')
+
   let exportDefault: any = null
   traverse(file.scriptAst, {
     ExportDefaultDeclaration(path: any) {
@@ -299,7 +305,7 @@ const injected: string[] = []
     result.extraImports.push("import { nextTick } from 'vue'")
   }
   if (hasEmit && !result.extraImports.includes("const emit = defineEmits<any>()")) {
-    injected.push('const emit = defineEmits<any>()')
+    injected.push(isTs ? 'const emit = defineEmits<any>()' : 'const emit = defineEmits()')
   }
   // 2.0.3 sync to result.*Used (for watch key translation, replaceThisInBody and other subsequent steps)
   if (hasRoute) result.routeUsed = true
@@ -329,10 +335,10 @@ const injected: string[] = []
       if (init === 'null' && typeStr === 'any | null') {
         typeStr = 'any'
       }
-      lines.push(`const ${f.name} = ref<${typeStr}>(${init})`)
+      lines.push(`const ${f.name} = ${isTs ? `ref<${typeStr}>` : 'ref'}(${init})`)
       result.vueImports.add('ref')
     } else {
-      lines.push(`const ${f.name} = reactive<${f.typeStr}>(${initStr})`)
+      lines.push(`const ${f.name} = ${isTs ? `reactive<${f.typeStr}>` : 'reactive'}(${initStr})`)
       result.vueImports.add('reactive')
     }
   }
@@ -340,7 +346,7 @@ const injected: string[] = []
 
   // 4. Template refs
   for (const refName of refsToDeclare) {
-    lines.push(`const ${refName} = ref<any>(null)`)
+    lines.push(`const ${refName} = ${isTs ? 'ref<any>' : 'ref'}(null)`)
     result.vueImports.add('ref')
   }
   if (refsToDeclare.size > 0) lines.push('')
@@ -491,10 +497,10 @@ if (inner === '$route' && result.routeUsed) inner = 'route'
       const isChartLike = /chart|myChart|chartInstance|editor|monaco/i.test(v)
       if (isChartLike) {
         // ECharts / 3rd-party instance pattern: use ref<any>
-        lines.push(`const ${v} = ref<any>(null)`)
+        lines.push(`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)`)
         result.vueImports.add('ref')
         result.reviewItems.push(
-          `自由变量 \`${v}\` 看起来是 ECharts/3rd-party instance pattern, 已在 setup 顶层声明为 \`const ${v} = ref<any>(null)\` (配合 :ref="set${v.charAt(0).toUpperCase() + v.slice(1)}" 初始化).`,
+          `自由变量 \`${v}\` 看起来是 ECharts/3rd-party instance pattern, 已在 setup 顶层声明为 \`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)\` (配合 :ref="set${v.charAt(0).toUpperCase() + v.slice(1)}" 初始化).`,
         )
       } else {
         lines.push(`let ${v}: any`)

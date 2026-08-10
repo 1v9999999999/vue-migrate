@@ -14,6 +14,7 @@ const testFiles = [
   'packages/plugins/vxe-table/src/__tests__/test-vxe-table.ts',
   'packages/plugins/package-json/src/__tests__/test-package-json.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-remove-vue-import.ts',
+  'packages/plugins/composition/src/__tests__/test-lang-output.ts',
 ]
 
 let totalPass = 0
