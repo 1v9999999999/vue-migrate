@@ -296,4 +296,5 @@ for (const c of cases) {
   }
 }
 console.log(`\n${pass}/${pass + fail} 通过`)
+console.log(`tests ${pass + fail} pass ${pass} fail ${fail}`)
 process.exit(fail === 0 ? 0 : 1)

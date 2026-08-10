@@ -152,6 +152,83 @@
 | B36 | vue3-entry 调 `mount('##app')` 多了个 `#` (log 字符串硬编码) | iter-028 | vue3-entry |
 | B37 | vue2-compat 重复 push 'createApp' 到 import (GBK 时期遗留) | iter-028 | vue2-compat |
 | B38 | vue2-compat 重复声明 `ObjectProperty` visitor (rename bug 留痕) | iter-028 | vue2-compat |
+| B39 | elementui icon.ts: 多重 edit 在 `out` 上直接 splice，原 template 偏移失效 → 多字节 UTF-8 损坏 | iter-029 | elementui/icon |
+| B40 | elementui tsconfig 残留 `rootDir: "./src"`，阻止跨包 import | iter-029 | elementui/tsconfig |
+
+## iter-030 highlights: vxe-table 3→4 插件
+
+### 新插件 `@vue-migrate/plugin-vxe-table`
+- **VT.1** `'vxe-table/lib/index.css'` → `'vxe-table/lib/style.css'` (script side, AST 改写 `node.source.value` + `extra.raw`)
+- **VT.2** `<vxe-table-column>` → `<vxe-column>` (template side, open + close tag 同时改)
+- 优先级 8（在 vue3-template 9 之后跑，template 规则先扫）
+- 文件改动：
+  - `packages/plugins/vxe-table/` 新建 (package.json + tsconfig + types-shim + index.ts + 2 rules + 13 测试)
+  - `packages/cli/src/index.ts` 加 `import '@vue-migrate/plugin-vxe-table'`
+  - `node_modules/@vue-migrate/plugin-vxe-table` symlink (root + cli 双重)
+  - `pnpm-lock.yaml` 锁文件更新
+  - `_dbg/check-all-tsc.mjs` + `_dbg/check-all-tests.mjs` 加入 vxe-table
+
+### 故意不做
+- 主包 `import 'vxe-table'` 同名 → 不强制改
+- `VXETable` 默认导入名不强制改为 `VxeUITable`（v4 兼容）
+- v3 config prop（`sort-config`, `column-config` 等）不自动改 v4 新名（向后兼容）
+
+### 关键 bug 修复
+- **VT-1**: `vxe-table/src/index.ts` 初始 import 深度 4 `..` → 改为 2 `..` (从 src/ 出发)
+- **VT-2**: `vxe-table/src/rules/template.ts` 初始 import 深度 4 `..` → 改为 3 `..` (从 rules/ 出发)
+- **VT-3**: 第一次实现的 `renameVxeTableColumn` 只改了 open tag, close tag 没改 → 加 `el.closeStart` + 2 + `OLD_TAG.length` 的 edit
+- **VT-4**: 第一次实现的 newOpen 字符串里包含 attrs, 但 edits 范围只到 `tagNameEnd` → 改为只 replacement 只含 `<${NEW_TAG}`, attrs 保留
+- **VT-5**: `test-vxe-table.ts` 缺 `relativePath/metadata/changed` 字段（FileNode 类型 contract）→ 补上
+- **VT-6**: 单元测试输出用中文"通过", check-all-tests 正则 `pass N/fail N` 解析成 0 → 加 `tests N pass N fail N` 行
+
+### iter-030 state
+| Metric | iter-029 | iter-030 |
+|---|---|---|
+| compileOk | 0.988 | 0.988 |
+| astEquivalent | 0.649 | 0.649 |
+| semanticDiff | 0.742 | 0.742 |
+| runtimeSafe | 0.884 | 0.884 |
+| totalReviewDelta | 540 | 540 |
+| totalFiles | 232 | 232 |
+| tsc errors | 0/11 | **0/12** |
+| unit tests | 94/94 | **130/130** (94+23 editor+13 vxe-table) |
+| baseline diff vs iter-029-ref | 0 byte | 0 byte / 614 files identical |
+
+注：vxe-table 插件不命中任何现有 sample（示例项目都没用 vxe-table），所以数字不变。
+
+## iter-029 highlights: 中心化 template-editor API
+
+### 新建 `packages/plugins/vue3-template/src/utils/template-editor.ts`
+5 个 public function + 23 单元测试，single source of truth for "找 HTML 元素 + 应用转换 + splice 回原文"：
+- `attrAbsStart(el, attr)` / `attrAbsEnd(el, attr)` — relative → absolute
+- `replaceElement(source, el, replacement)` — 整个元素替换
+- `removeElement(source, el)` — 删除元素
+- `insertBeforeElement(source, el, content)` / `insertAfterElement(...)`
+- `replaceAttribute(source, el, attr, newAttr)` — attribute splice（newAttr=null = 删除）
+- `applyEdits(source, edits[])` — 多个 edit 一次性 right-to-left 应用
+- `replaceMatchingElements<T>(source, predicate, build)` — high-level find-and-replace
+
+### Refactored 4 个 rule 用 template-editor
+- `inline-template.ts` — `replaceAttribute(out, el, attr, null)`
+- `vbind-sync.ts` — 收集 TextEdits, `applyEdits` 处理
+- `slot-rewriting.ts` — B33 修复后 + 改用 `applyEdits` 处理 `<template>` 原地改写和 element wrap
+- `elementui/src/rules/icon.ts` — `applyEdits` + `replaceElement`, B39 修了"多次 edit 直接 splice 破坏多字节 UTF-8"bug
+
+### 关键 bug 修复
+- **B39**: `icon.ts` 的 `transformIcons` 在 `out` 上多次直接 `replaceElement` 用了**原 template 偏移**，第一次 splice 后偏移失效, 后续 splice 破坏多字节 UTF-8。修：收集 TextEdit, 走 `applyEdits` right-to-left
+- **B40**: `elementui/tsconfig.json` 残留 `rootDir: "./src"`, 阻止跨包 import 别的 plugin 的 source。删除 rootDir
+
+### iter-029 state
+| Metric | iter-028 | iter-029 |
+|---|---|---|
+| compileOk | 0.988 | 0.988 |
+| astEquivalent | 0.649 | 0.649 |
+| semanticDiff | 0.742 | 0.742 |
+| runtimeSafe | 0.884 | 0.884 |
+| totalReviewDelta | 540 | 540 |
+| totalFiles | 232 | 232 |
+| tsc errors | 0/11 | 0/11 |
+| unit tests | 94 + 8 slot + 4 vbind | **94 + 23 editor + 8 slot + 4 vbind** |
 
 ## iter-028 highlights
 
