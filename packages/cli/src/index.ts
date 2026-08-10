@@ -20,8 +20,10 @@ import '@vue-migrate/plugin-composition'
 import '@vue-migrate/plugin-vue-router-v4'
 import '@vue-migrate/plugin-vuex-pinia'
 import '@vue-migrate/plugin-vxe-table'
+import '@vue-migrate/plugin-3rd-party-imports'
 import '@vue-migrate/plugin-package-json'
 import '@vue-migrate/plugin-import-cleaner'
+import '@vue-migrate/plugin-vite-compat'
 
 const program = new Command()
 
