@@ -8,10 +8,13 @@
  *   PJ.1  dependencies / devDependencies  按 DEP_MAP 重命名 / 删除 / 升版本
  *   PJ.2  scripts                       `serve`→`dev`、`vue-cli-service X`→vite 等价命令
  *   PJ.3  devDependencies 注入 vite + @vitejs/plugin-vue（如果原 devDep 没有）
+ *   PJ.4  iter-048a F5: src/styles/ 目录自动复制 — main.js / settings.js 引用 styles 目录
+ *        但 scanner 不会扫 .scss/.css。如果原项目有 src/styles/，我们把整个目录
+ *        copy 到 outDir。缺失的 styles 文件会导致 build 即挂（P0 build blocker）。
  *
  * 实现策略：
  *   - 用 `analyze` 钩子（跨文件分析阶段）一次性处理 + 写盘
- *   - 直接调 fs.writeFile，不走 ctx.files 流程（package.json 不会被 scanner 扫到）
+ *   - 直接调 fs.writeFile/copyFile，不走 ctx.files 流程（package.json / styles 不会被 scanner 扫到）
  *   - 写到 ctx.config.outDir ?? ctx.root
  *   - dry-run 时跳过写盘
  *
@@ -20,9 +23,9 @@
  *                  我们再处理包文件不会跟代码侧冲突）
  */
 
-import { readFile, writeFile, copyFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, copyFile, mkdir, readdir } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import {
   registerPlugin,
   type TransformPlugin,
@@ -74,10 +77,53 @@ function transformPackageJson(pkg: PkgJson): { changes: string[]; changed: boole
   return { changes: allChanges, changed: allChanges.length > 0 }
 }
 
+/**
+ * iter-048a F5: 递归复制目录
+ * - 跳过 node_modules / .git / dist
+ * - 出错不抛,只 console.error (best-effort)
+ */
+async function copyDir(
+  srcDir: string,
+  destDir: string,
+  skipNames: string[],
+): Promise<{ files: number; errors: number }> {
+  let files = 0
+  let errors = 0
+
+  async function walk(dir: string): Promise<void> {
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    await mkdir(dir.replace(srcDir, destDir), { recursive: true })
+    for (const e of entries) {
+      if (skipNames.includes(e.name)) continue
+      const src = join(dir, e.name)
+      const dest = src.replace(srcDir, destDir)
+      if (e.isDirectory()) {
+        await walk(src)
+      } else if (e.isFile()) {
+        try {
+          await copyFile(src, dest)
+          files++
+        } catch (err: any) {
+          errors++
+          console.error(`[package-json] copy ${src} → ${dest} 失败: ${err.message}`)
+        }
+      }
+    }
+  }
+
+  await walk(srcDir)
+  return { files, errors }
+}
+
 const plugin: TransformPlugin = {
   name: 'package-json',
   description:
-    'Migrate package.json from Vue 2 (vue-cli-service, vuex, element-ui, vue-router 3) to Vue 3 (vite, pinia, element-plus, vue-router 4, @vue/compiler-sfc).',
+    'Migrate package.json from Vue 2 (vue-cli-service, vuex, element-ui, vue-router 3) to Vue 3 (vite, pinia, element-plus, vue-router 4, @vue/compiler-sfc). Also copies non-code assets (src/styles/) to outDir.',
   priority: 100,
   fileKinds: [],  // 不走 per-file 流程
 
@@ -109,7 +155,10 @@ const plugin: TransformPlugin = {
     }
 
     const result = transformPackageJson(pkg)
-    if (!result.changed) {
+    // F5: 即使 package.json 没改,也可能要 copy styles
+    const stylesCopied = await this_maybeCopyStyles(ctx)
+
+    if (!result.changed && stylesCopied.files === 0) {
       return
     }
 
@@ -120,6 +169,9 @@ const plugin: TransformPlugin = {
     if (ctx.config.dryRun) {
       console.log(`\n[package-json] 计划改动 (${result.changes.length} 项):`)
       for (const c of result.changes) console.log(`  · ${c}`)
+      if (stylesCopied.files > 0) {
+        console.log(`  · [F5] 计划复制 ${stylesCopied.files} 个 styles 文件到 outDir`)
+      }
       return
     }
 
@@ -142,7 +194,37 @@ const plugin: TransformPlugin = {
     // 因为 package.json 不在 ctx.files 里, 我们 console.log 输出
     console.log(`\n[package-json] 已写 ${target} (${result.changes.length} 项改动):`)
     for (const c of result.changes) console.log(`  · ${c}`)
+    if (stylesCopied.files > 0) {
+      console.log(`  · [F5] 已复制 ${stylesCopied.files} 个 styles 文件到 outDir/src/styles/`)
+    }
   },
+}
+
+/**
+ * iter-048a F5: 如果原项目有 src/styles/ 目录, copy 到 outDir/src/styles/
+ *  解决: main.js / settings.js 引用 @/styles/xxx.scss 但 scanner 不会复制 scss 文件,
+ *       导致 build 找不到文件。
+ */
+async function this_maybeCopyStyles(
+  ctx: ProjectContext,
+): Promise<{ files: number; errors: number }> {
+  const srcStyles = join(ctx.root, 'src', 'styles')
+  if (!existsSync(srcStyles) || !statSync(srcStyles).isDirectory()) {
+    return { files: 0, errors: 0 }
+  }
+
+  // 只在指定了 outDir 时复制 (in-place 模式没必要复制)
+  if (!ctx.config.outDir) {
+    return { files: 0, errors: 0 }
+  }
+
+  const outDir = resolve(ctx.config.outDir)
+  const destStyles = join(outDir, 'src', 'styles')
+
+  // 跳过敏感目录
+  const skipNames = ['node_modules', '.git', 'dist', '.cache']
+
+  return copyDir(srcStyles, destStyles, skipNames)
 }
 
 registerPlugin(plugin)

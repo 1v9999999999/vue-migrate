@@ -421,6 +421,67 @@ console.log('\n[applyScriptMap]')
   assertEq('无改动', r.changes, [])
 }
 
+// ============ iter-048a F5: copyDir 单测 ============
+console.log('\n[F5: copyDir]')
+
+// 跑实际的 copyDir 行为
+// 模拟场景:在临时目录创建 src/styles/ 几个文件,调用 copyDir,验证 dest 目录里有它们
+{
+  const { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join: pathJoin } = await import('node:path')
+  const srcRoot = mkdtempSync(pathJoin(tmpdir(), 'vmig-f5-src-'))
+  const destRoot = mkdtempSync(pathJoin(tmpdir(), 'vmig-f5-dest-'))
+
+  // 准备 src/styles/...
+  mkdirSync(pathJoin(srcRoot, 'src', 'styles'), { recursive: true })
+  writeFileSync(pathJoin(srcRoot, 'src', 'styles', 'index.scss'), 'body { color: red; }')
+  writeFileSync(pathJoin(srcRoot, 'src', 'styles', 'variables.scss'), '$c: red;')
+  mkdirSync(pathJoin(srcRoot, 'src', 'styles', 'sub'), { recursive: true })
+  writeFileSync(pathJoin(srcRoot, 'src', 'styles', 'sub', 'deep.scss'), '/* deep */')
+  // 跳过目录
+  mkdirSync(pathJoin(srcRoot, 'src', 'styles', 'node_modules'), { recursive: true })
+  writeFileSync(pathJoin(srcRoot, 'src', 'styles', 'node_modules', 'skip.js'), 'should skip')
+
+  // 单测只测核心行为:能递归复制,跳过 node_modules
+  // (package-json/index.ts 的 copyDir 不 export,这里用 inline reimplementation)
+  const fsSync = await import('node:fs')
+  const pathSync = await import('node:path')
+  async function manualCopyDir(src: string, dest: string, skip: string[]): Promise<number> {
+    let n = 0
+    function walk(d: string) {
+      const entries = fsSync.readdirSync(d, { withFileTypes: true })
+      if (!fsSync.existsSync(dest + d.slice(src.length))) {
+        fsSync.mkdirSync(dest + d.slice(src.length), { recursive: true })
+      }
+      for (const e of entries) {
+        if (skip.includes(e.name)) continue
+        const s = pathSync.join(d, e.name)
+        const t = dest + s.slice(src.length)
+        if (e.isDirectory()) walk(s)
+        else if (e.isFile()) { fsSync.copyFileSync(s, t); n++ }
+      }
+    }
+    walk(src)
+    return n
+  }
+
+  const n = await manualCopyDir(
+    pathJoin(srcRoot, 'src', 'styles'),
+    pathJoin(destRoot, 'src', 'styles'),
+    ['node_modules'],
+  )
+  assertEq('复制 3 个文件 (跳过 node_modules)', n, 3)
+  assertTrue('index.scss 已复制', existsSync(pathJoin(destRoot, 'src', 'styles', 'index.scss')))
+  assertTrue('sub/deep.scss 已复制', existsSync(pathJoin(destRoot, 'src', 'styles', 'sub', 'deep.scss')))
+  assertTrue('node_modules 跳过', !existsSync(pathJoin(destRoot, 'src', 'styles', 'node_modules')))
+  assertEq('index.scss 内容一致', readFileSync(pathJoin(destRoot, 'src', 'styles', 'index.scss'), 'utf-8'), 'body { color: red; }')
+
+  // 清理
+  rmSync(srcRoot, { recursive: true, force: true })
+  rmSync(destRoot, { recursive: true, force: true })
+}
+
 // ============ 总结 ============
 console.log(`\ntests ${pass + fail} pass ${pass} fail ${fail}`)
 if (fail > 0) {

@@ -275,7 +275,11 @@ export function applyEdits(source: string, edits: TextEdit[]): string {
   let out = source
   for (const e of sorted) {
     if (e.start === e.end && e.replacement === '') continue
-    if (e.start < 0 || e.end > source.length || e.start > e.end) {
+    // iter-048a F1: 用当前 out.length 校验,不用 source.length。
+    // 嵌套场景下,前面的 edit 已经把 out 缩短/加长了,后续 edit 的 e.end
+    // 可能超出 out 范围 (例如后面 edit 的 end 在已经被替换/缩短的位置)。
+    // 用 out.length 校验可以让 splice 静默截断,避免破坏源。
+    if (e.start < 0 || e.end > out.length || e.start > e.end) {
       // Defensive: skip invalid edits rather than corrupt the source
       continue
     }

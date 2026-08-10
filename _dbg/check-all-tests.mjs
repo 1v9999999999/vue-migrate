@@ -13,6 +13,7 @@ const testFiles = [
   'packages/plugins/vue3-template/src/__tests__/test-editor.ts',
   'packages/plugins/vue3-template/src/__tests__/test-native-modifier.ts',
   'packages/plugins/vue3-template/src/__tests__/test-prefix-icon.ts',
+  'packages/plugins/vue3-template/src/__tests__/test-vattrs-vdeep.ts',
   'packages/plugins/vxe-table/src/__tests__/test-vxe-table.ts',
   'packages/plugins/package-json/src/__tests__/test-package-json.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-remove-vue-import.ts',
@@ -22,6 +23,9 @@ const testFiles = [
   'packages/plugins/import-cleaner/src/__tests__/test-import-cleaner.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-install-rewrite.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-vnode-binding.ts',
+  'packages/plugins/vue3-directives/src/__tests__/test-directive-auto-register.ts',
+  'packages/plugins/vue3-directives/src/__tests__/test-directive-auto-register-f6.ts',
+  'packages/plugins/3rd-party-imports/src/__tests__/test-3rd-party-iter048a.ts',
   'packages/plugins/vite-compat/src/__tests__/test-vite-compat.ts',
   'packages/plugins/store-bridge/src/__tests__/test-store-bridge.ts',
 ]

@@ -154,6 +154,81 @@ const cases: Array<{ name: string; input: string; expected: string }> = [
   </template>
 </my-card>`,
   },
+  // ============ iter-048a F1: 嵌套 slot wrap 修复 ============
+  {
+    name: 'F1: 外层 slot=dropdown 包了内层 slot=prepend 模板 (sticky.vue 真实场景)',
+    input: `<el-dropdown trigger="click">
+  <el-button>Link</el-button>
+  <el-dropdown-menu slot="dropdown" class="no-padding" style="width:300px">
+    <el-input v-model="url" placeholder="...">
+      <template slot="prepend">
+        Url
+      </template>
+    </el-input>
+  </el-dropdown-menu>
+</el-dropdown>`,
+    expected: `<el-dropdown trigger="click">
+  <el-button>Link</el-button>
+  <template #dropdown>
+    <el-dropdown-menu class="no-padding" style="width:300px">
+      <el-input v-model="url" placeholder="...">
+        <template #prepend>
+          Url
+        </template>
+      </el-input>
+    </el-dropdown-menu>
+  </template>
+</el-dropdown>`,
+  },
+  {
+    name: 'F1: 3 层嵌套 — 祖父 slot=header 父 slot=footer 内 template slot=title',
+    input: `<a>
+  <b slot="header">
+    <c slot="footer">
+      <template slot="title">T</template>
+      X
+    </c>
+  </b>
+</a>`,
+    expected: `<a>
+  <template #header>
+    <b>
+      <template #footer>
+        <c>
+          <template #title>T</template>
+          X
+        </c>
+      </template>
+    </b>
+  </template>
+</a>`,
+  },
+  {
+    name: 'F1: 内层 slot 与外层 slot 同行 — 同级不会嵌套,正常两次独立改',
+    input: `<x>
+  <y slot="a"><template slot="b">Z</template></y>
+  <y slot="c">OK</y>
+</x>`,
+    // 内层 template slot 已被改写为 #b,外层 y slot 也被 wrap
+    // (内层因 inline 形式 <y>...<template>Z</template>...</y> 不会被再缩进 — 现行 wrap 行为)
+    expected: `<x>
+  <template #a>
+    <y><template #b>Z</template></y>
+  </template>
+  <template #c>
+    <y>OK</y>
+  </template>
+</x>`,
+  },
+  {
+    name: 'F1: 无 slot 改动场景 (regression — 不动)',
+    input: `<div>
+  <el-input v-model="x" />
+</div>`,
+    expected: `<div>
+  <el-input v-model="x" />
+</div>`,
+  },
 ]
 
 let pass = 0
