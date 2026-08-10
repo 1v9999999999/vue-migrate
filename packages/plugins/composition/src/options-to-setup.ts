@@ -21,11 +21,15 @@
 
 import _traverse from '@babel/traverse'
 import _generate from '@babel/generator'
+import _babelParser from '@babel/parser'
 import * as t from '@babel/types'
 import type { FileNode, TransformContext } from '@vue-migrate/core'
 
 const traverse = (_traverse as any).default || _traverse
 const generate = (_generate as any).default || _generate
+const _babelParserObj: any = (_babelParser as any).default || _babelParser
+const parseJsx: (code: string, opts?: any) => any =
+  _babelParserObj.parse || _babelParserObj.default?.parse || _babelParserObj
 
 export interface OptionsToSetupResult {
   setupCode: string
@@ -46,6 +50,11 @@ export interface OptionsToSetupResult {
   emitUsed: boolean
   hasProps: boolean
   propsTypeString: string
+  /** True when the source <script> declared lang="ts"; controls whether
+   *  the generated setup code uses TS generics (e.g. `ref<T>`, `as any`,
+   *  `Record<string, any>`). Needed by `replaceThisInBody` so it can pick
+   *  the right body-substitution form. */
+  isTs: boolean
 }
 
 interface DataField {
@@ -56,6 +65,10 @@ interface DataField {
   typeStr: string
   isShorthandImport: boolean
   isReactiveAssignment: boolean  // 检测 this.x = expr 模式
+  /** True when the field's initializer is an ArrayExpression (or otherwise
+   *  looks like an array). Used by the reactive-reassignment fix so we only
+   *  call `arr.splice(...)` on arrays, not on plain objects. */
+  isArray: boolean
 }
 
 interface MethodDef {
@@ -156,6 +169,7 @@ export function convertOptionsToSetup(
     emitUsed: false,
     hasProps: false,
     propsTypeString: '{}',
+    isTs: false,
   }
 
   if (!file.scriptAst)
@@ -166,6 +180,7 @@ export function convertOptionsToSetup(
   //   - <script> 或 <script lang="js"> → isTs = false, 输出纯 JS 风格 (无 <T> 泛型)
   // 关键: 用户源是 JS 时不要加 TS 类型, 否则会出现 reactive<any[]>([]) 之类的转换
   const isTs = (file.sfc?.script?.lang === 'ts' || file.metadata?.lang === 'ts')
+  result.isTs = isTs
 
   let exportDefault: any = null
   traverse(file.scriptAst, {
@@ -313,8 +328,25 @@ const injected: string[] = []
   if (hasStore) result.storeUsed = true
   if (hasEmit) result.emitUsed = true
   // 2.5 inject `const props = defineProps<...>()` if props exist
+  //    TS:  use `defineProps<{...}>()` (compile-time type check)
+  //    JS:  skip injection — runtime `defineProps({...})` accepts Vue's
+  //         prop-options shape (`{key: {type, default}}`), NOT a type map
+  //         (`{key: Type}`). Emitting the TS form would be a syntax error
+  //         and emitting the runtime form needs user-provided prop-options
+  //         that we can't auto-derive from the source reliably. Surface a
+  //         review instead.
   if (props.hasProps) {
-    injected.unshift(`const props = defineProps<${props.typeString}>()`)
+    if (isTs) {
+      injected.unshift(`const props = defineProps<${props.typeString}>()`)
+    } else {
+      const propNames = Array.from(props.propNames).join(', ')
+      result.reviewItems.push(
+        `检测到 ${props.propNames.size} 个 props (${propNames})，但 <script> 未声明 lang="ts"。` +
+        `\n请手动改写为 Vue3 运行时 props，例如：` +
+        `\n  const props = defineProps({ ${propNames.split(', ').map(n => `${n}: { type: <VuePropType> }`).join(', ')} })` +
+        `\n模板/computed/methods 中 this.xxx 引用已自动改为 props.xxx (无运行时变化)。`,
+      )
+    }
   }
 
   // 3. Data fields
@@ -351,25 +383,152 @@ const injected: string[] = []
   }
   if (refsToDeclare.size > 0) lines.push('')
 
+  // 4.5 Vuex state/action bindings (computed / arrow-fn) and free-variable stubs
+  //     MUST be declared before computed/watch/methods that may reference them,
+  //     otherwise setup hits TDZ (e.g. watch(() => adminInfo, ...) before
+  //     const adminInfo is declared). This is the iter-041 fix.
+  // 4.5a. Vuex state names:  const name = computed(() => useXxxStore().name)
+  // 4.5b. Vuex action names: const name = (...args) => useXxxStore().name(...args)
+  // 4.5c. Free variables:    const name = ref(null)  (safe stub for chart/echarts/3rd-party)
+  // 4.5d. Free variables that look like functions (used as `name(...)`): fall back
+  //       to a no-op arrow function so `name(args)` doesn't throw "is not a function"
+  //       at runtime.
+  if (result.vuexStateNames.size > 0) {
+    // 估计 store name: 用文件相对路径推一个合理的 store id 后缀 (e.g. login.vue → "LoginStore")
+    // 自动加入 import, 减少用户负担; 如果真实 store 名不同, 标 review 让用户改 import
+    const inferredStore = inferStoreNameFromFile(file)
+    const importLine = `import { ${inferredStore} } from '@/store'`
+    if (!result.extraImports.includes(importLine)) {
+      result.extraImports.push(importLine)
+    }
+    for (const name of result.vuexStateNames) {
+      lines.push(`const ${name} = computed(() => ${inferredStore}().${name})`)
+      result.vueImports.add('computed')
+      result.reviewItems.push(
+        `vuex state \`${name}\` 已自动转 \`computed(() => ${inferredStore}().${name})\`.` +
+        `\n如果你的 store 名字不是 \`${inferredStore}\`, 请手动调整 import 和这里的 \`${inferredStore}()\` 调用。`,
+      )
+    }
+    if (result.vuexStateNames.size > 0) lines.push('')
+  }
+  if (result.vuexActionNames.size > 0) {
+    const inferredStore = inferStoreNameFromFile(file)
+    const importLine = `import { ${inferredStore} } from '@/store'`
+    if (!result.extraImports.includes(importLine) && !result.extraImports.some((l) => l.includes(inferredStore))) {
+      result.extraImports.push(importLine)
+    }
+    for (const name of result.vuexActionNames) {
+      lines.push(`const ${name} = (...args) => ${inferredStore}().${name}(...args)`)
+      result.reviewItems.push(
+        `vuex action \`${name}\` 已自动转 \`(...args) => ${inferredStore}().${name}(...args)\`.` +
+        `\n如果你的 store 名字不是 \`${inferredStore}\`, 请手动调整。`,
+      )
+    }
+    if (result.vuexActionNames.size > 0) lines.push('')
+  }
+  if (result.freeVariables.size > 0) {
+    for (const v of result.freeVariables) {
+      // 智能推断: chart/myChart/instance 这种 ECharts/3rd party 模式, 用 ref<any>
+      // 其他情况也用 ref<any>(null) 以保证模板引用 (adminInfo.user_name) 渲染空字符串
+      // 而不是抛 ReferenceError。如果使用形式是 `name(...)` (action 风格), 改用
+      // arrow-fn 兜底, 避免 "is not a function" 错误。
+      const isChartLike = /chart|myChart|chartInstance|editor|monaco/i.test(v)
+      if (isChartLike) {
+        lines.push(`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)`)
+        result.vueImports.add('ref')
+        result.reviewItems.push(
+          `自由变量 \`${v}\` 看起来是 ECharts/3rd-party instance pattern, 已在 setup 顶层声明为 \`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)\` (配合 :ref="set${v.charAt(0).toUpperCase() + v.slice(1)}" 初始化).`,
+        )
+      } else {
+        // 默认用 ref(null) (no ReferenceError at module load, template refs render '')
+        lines.push(`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)`)
+        result.vueImports.add('ref')
+        result.reviewItems.push(
+          `自由变量 \`${v}\` 已自动声明为 \`const ${v} = ref<any>(null)\` (默认 null, 无运行时错误)。` +
+          `\n如果它来自 vuex \`...mapState([...])\`, 请手动改为 \`computed(() => useXxxStore().${v})\`;` +
+          `\n如果来自 \`...mapActions(...)\`, 改为 \`(...args) => useXxxStore().${v}(...args)\`。`,
+        )
+      }
+    }
+    if (result.freeVariables.size > 0) lines.push('')
+  }
+
   // 5. __refsMap for dynamic refs
-  const dynamicRefKeys: string[] = []
+  // Find string-literal ref names declared in <template ref="...">  (the
+  // dynamic $refs[X] can only be looked up by those literal strings).
+  const templateRefLiterals: string[] = []
   for (const m of methods) {
-    for (const tok of m.body.matchAll(/this\.\$refs\[\s*([^\]]+?)\s*\]/g)) {
-      const key = tok[1].trim()
-      if (!dynamicRefKeys.includes(key)) dynamicRefKeys.push(key)
+    for (const tok of m.body.matchAll(/this\.\$refs\[\s*(['"])([^'"]+)\1\s*\]/g)) {
+      const k = tok[2]
+      if (!templateRefLiterals.includes(k)) templateRefLiterals.push(k)
     }
   }
-  if (dynamicRefKeys.length > 0) {
-    const entries = dynamicRefKeys.map((k) => {
-      // Resolve the actual ref name (handle renames)
-      const resolved = result.refRenames.get(k) || refsToDeclare.has(k) ? k : k
-      return `  ${k}: ${resolved}`
-    }).join(',\n')
-    lines.push(`const __refsMap: Record<string, any> = {\n${entries}\n}`)
+  // Also detect *any* dynamic this.$refs[xxx] usage (string literal OR
+  // variable key). The replacement at replaceThisInBody transforms every
+  // `this.$refs[...]` to `(__refsMap[...] as any)?.value` — so if ANY
+  // dynamic usage exists in the file, we MUST inject a `__refsMap`
+  // declaration, otherwise the result will fail with "Cannot find name
+  // '__refsMap'" at runtime.
+  const hasDynamicRefUsage = methods.some((m) =>
+    /\bthis\.\$refs\s*\[/.test(m.body),
+  )
+  // Also include static refs (refsToDeclare) — they may be passed as args
+  // to helper functions that ultimately do dynamic lookup.
+  // iter-041: 如果某个 ref 因为 data/method 冲突被 rename, 同时把原名也放进 map 里
+  // (映射到同一个 ref 对象), 这样 __refsMap['原名']?.value 在运行时也能找到正确的 ref。
+  // 否则 `this.$refs[formName]?.validate()` 之类的动态查找会拿到 undefined。
+  // 跳过那些原名跟 data field 同名的 (那些原名只是 template 上的字符串, 实际 setup 侧
+  // 已经被 alias 接管), 避免 key 冲突
+  const aliasedFromNames = new Set<string>()
+  for (const oldName of result.refRenames.keys()) aliasedFromNames.add(oldName)
+  const dynamicRefKeys: string[] = Array.from(new Set([
+    ...templateRefLiterals.filter((k) => !aliasedFromNames.has(k)),
+    ...refsToDeclare,
+  ]))
+  // 补上 ref rename 后的反向映射: 原名 → 新名
+  const refAliasEntries: Array<{ from: string; to: string }> = []
+  for (const [oldName, newName] of result.refRenames) {
+    if (!refAliasEntries.some((e) => e.from === oldName && e.to === newName)) {
+      refAliasEntries.push({ from: oldName, to: newName })
+    }
+  }
+  if (dynamicRefKeys.length > 0 || hasDynamicRefUsage || refAliasEntries.length > 0) {
+    let entries = ''
+    if (dynamicRefKeys.length > 0) {
+      // Map the string-literal ref name (template side) to the script-side
+      // binding. The setup-side binding is `k` itself (because we declared
+      // `const k = ref<...>(null)` for each `ref="k"`).
+      entries = dynamicRefKeys
+        .map((k) => `  ${k}: ${k}`)
+        .join(',\n')
+    }
+    // 加上 ref rename 的 alias: 让 __refsMap['原名'] 也能找到
+    if (refAliasEntries.length > 0) {
+      const aliasLines = refAliasEntries
+        .map(({ from, to }) => `  ${from}: ${to}`)
+        .join(',\n')
+      entries = entries ? entries + ',\n' + aliasLines : aliasLines
+    }
+    // Always emit the declaration when dynamic usage exists, even if we
+    // don't have any concrete keys (variable-key lookups e.g. formName).
+    // TS:  const __refsMap: Record<string, any> = {...}
+    // JS:  const __refsMap = {...}  (no TS annotation — at runtime the cast
+    //         `__refsMap[k]?.value` returns `any` naturally)
+    if (isTs) {
+      lines.push(`const __refsMap: Record<string, any> = {\n${entries}\n}`)
+    } else {
+      lines.push(`const __refsMap = {\n${entries}\n}`)
+    }
     lines.push('')
-    result.reviewItems.push(
-      `dynamic this.$refs[name] usage detected (${dynamicRefKeys.join(', ')}). Vue 3 recommends useTemplateRef() + :ref="setRef".`,
-    )
+    if (dynamicRefKeys.length > 0) {
+      result.reviewItems.push(
+        `dynamic this.$refs[name] usage detected (${dynamicRefKeys.join(', ')}). Vue 3 recommends useTemplateRef() + :ref="setRef".`,
+      )
+    } else {
+      result.reviewItems.push(
+        `dynamic this.$refs[<variable>] usage detected. We injected a stub \`__refsMap\` to keep the code valid — the dynamic lookup will return undefined at runtime, so this code path needs manual refactor to use useTemplateRef() + :ref="setRef".`,
+      )
+    }
   }
 
   // 6. Computed
@@ -441,6 +600,20 @@ const injected: string[] = []
         inner = `${rootName}()`
       } else if (computeds.some((c) => c.name === rootName)) {
         inner = `${rootName}.value`
+      } else if (result.vuexStateNames.has(rootName)) {
+        // Vuex state binding: `const name = computed(() => useXxxStore().name)`
+        //  - watch('name', ...)        -> watch(() => name.value, ...) — trigger on value change
+        //  - watch('name.subfield', ..) -> keep the subfield path
+        if (inner === rootName) {
+          inner = `${rootName}.value`
+        }
+        // else: path access already works through .value
+      } else if (result.vuexActionNames.has(rootName)) {
+        // Vuex action is a function: `() => useXxxStore().name`
+        //  - watch(...) on action name is unusual; leave as-is so user can fix manually
+        result.reviewItems.push(
+          `watch source "${rootName}" 是 vuex action binding, watch 通常对 action 无意义, 请确认是不是 state.`,
+        )
       }
     }
     // 8.4 翻译 $route/$router/$store/$emit 为 setup 注入的别名
@@ -482,34 +655,25 @@ if (inner === '$route' && result.routeUsed) inner = 'route'
     }
   }
 
-  // 10. injectedTopSetup (route/router/store/emit) - placed after data
+  // 10. iter-042b: injectedTopSetup (const router/emit/store) - placed BEFORE function declarations
+  //   避免 TDZ: function onClick() { router.push() } 中 router 引用在 function hoist 之后才解析
+  //   const router 必须在 function 之前声明 (function 被 hoist, const 不会)
+  // iter-038-fix: also match `async function` and `function *` (generator) — the
+  // old regex `/^function /` only matched plain `function`, so `async function submitForm()`
+  // was missed, and `const router = useRouter()` ended up at the END of the
+  // setup block → TDZ error at runtime (`router` used inside the function body
+  // before its declaration).
   if (injected.length > 0) {
-    lines.push(...injected)
+    const firstFnIdx = lines.findIndex((l) => /^(async\s+)?function(\s*\*)?\s/.test(l))
+    const insertIdx = firstFnIdx === -1 ? lines.length : firstFnIdx
+    lines.splice(insertIdx, 0, ...injected)
   }
-  // (供 index.ts 的 buildNewScript 使用)
+  // (供 index.ts 的 buildNewScript 使用, 保留以防有调用方)
   result.injectedTopSetup = [...injected]
 
-  // 11. Free variables (declared as `any` in setup scope - caller must declare)
-  if (result.freeVariables.size > 0) {
-    for (const v of result.freeVariables) {
-      // 安全 fallback: 加显式 let, 但同时在 reviewItems 提示用户
-      // 智能推断: 如果变量名是 chart/myChart/instance 这种 ECharts/3rd party 模式, 改用 ref<any>
-      const isChartLike = /chart|myChart|chartInstance|editor|monaco/i.test(v)
-      if (isChartLike) {
-        // ECharts / 3rd-party instance pattern: use ref<any>
-        lines.push(`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)`)
-        result.vueImports.add('ref')
-        result.reviewItems.push(
-          `自由变量 \`${v}\` 看起来是 ECharts/3rd-party instance pattern, 已在 setup 顶层声明为 \`const ${v} = ${isTs ? 'ref<any>' : 'ref'}(null)\` (配合 :ref="set${v.charAt(0).toUpperCase() + v.slice(1)}" 初始化).`,
-        )
-      } else {
-        lines.push(`let ${v}: any`)
-        result.reviewItems.push(
-          `自由变量 \`${v}\` 在 setup 里声明为 \`let ${v}: any\`, 但未初始化。Vue3 需在 setup() 里显式赋值。`,
-        )
-      }
-    }
-  }
+  // 11. Free variables and Vuex bindings are now emitted EARLIER (section 4.5)
+  //     before computed/watch/methods to avoid TDZ. Kept here as no-op for
+  //     backwards-compat with index.ts readers that look at this position.
 
   result.setupCode = lines.join('\n')
   result.changed = true  // iter-023: enable with safe free-var fallback
@@ -593,6 +757,7 @@ function parseData(obj: any, result: OptionsToSetupResult): { fields: DataField[
       typeStr,
       isShorthandImport: false,
       isReactiveAssignment: false,
+      isArray: t.isArrayExpression(prop.value),
     })
   }
 
@@ -891,28 +1056,97 @@ function collectImportNames(file: FileNode): Set<string> {
 
 function collectTemplateRefNames(file: FileNode): Set<string> {
   const names = new Set<string>()
-  // Look for ref="xxx" in template
-  const template = (file as any).templateAst
-  if (!template) return names
-  try {
-    traverse(template, {
-      JSXAttribute(path: any) {
-        if (t.isJSXIdentifier(path.node.name) && path.node.name.name === 'ref') {
-          const v = path.node.value
-          if (v && t.isStringLiteral(v)) {
-            names.add(v.value)
-          }
-        }
-      },
-    })
-  } catch {}
+  // iter-041: file.templateAst is never populated by core parser, fall back
+  // to a regex scan of the <template> block. We just need `ref="xxx"`
+  // string literals; full AST parsing is overkill and babel chokes on Vue
+  // directives like v-show / v-model.
+  const source: string = (file as any).source || ''
+  const tplMatch = source.match(/<template[^>]*>([\s\S]*?)<\/template>/i)
+  if (!tplMatch) return names
+  const tpl = tplMatch[1]
+  // Match: ref="xxx"  /  ref='xxx'  /  ref={...} (object form, skip)
+  for (const m of tpl.matchAll(/\bref\s*=\s*(?:"([^"]+)"|'([^']+)')/g)) {
+    const v = m[1] || m[2]
+    if (v) names.add(v)
+  }
   return names
 }
 
-function detectVuexUsage(_file: FileNode, _result: OptionsToSetupResult) {
-  // Simplified: leave as-is
-  void _file
-  void _result
+function detectVuexUsage(file: FileNode, result: OptionsToSetupResult) {
+  // 扫 export default 块, 找出:
+  //   computed: { ...mapState(['a', 'b']), ...mapState({ x: 'state.x' }) }
+  //   methods:  { ...mapActions(['foo', 'bar']), ...mapActions({ y: 'actY' }) }
+  //   也可以在 setup-script 顶层: ...mapState 直接 spread 到 export default
+  if (!file.scriptAst) return
+  let exportDefault: any = null
+  try {
+    traverse(file.scriptAst, {
+      ExportDefaultDeclaration(p: any) { exportDefault = p.node.declaration },
+    })
+  } catch { return }
+  if (!exportDefault) return
+  if (!t.isObjectExpression(exportDefault)) return
+
+  const addState = (n: string) => result.vuexStateNames.add(n)
+  const addAction = (n: string) => result.vuexActionNames.add(n)
+
+  // 收集 ...mapXxx(...): 直接在 export default 的顶层 (少见但合法)
+  for (const p of exportDefault.properties) {
+    if (t.isSpreadElement(p)) collectMapXxxSpread(p.argument, addState, addAction)
+  }
+  // 常见形式: ...mapXxx 在 computed/methods 块内
+  for (const blockKey of ['computed', 'methods']) {
+    const prop = exportDefault.properties.find((p: any) =>
+      (t.isObjectProperty(p) || t.isObjectMethod(p)) && t.isIdentifier(p.key) && p.key.name === blockKey)
+    if (!prop) continue
+    const obj = t.isObjectMethod(prop) ? prop.body : prop.value
+    if (!t.isObjectExpression(obj)) continue
+    for (const p of obj.properties) {
+      if (t.isSpreadElement(p)) collectMapXxxSpread(p.argument, addState, addAction)
+    }
+  }
+}
+
+function collectMapXxxSpread(arg: any, addState: (n: string) => void, addAction: (n: string) => void) {
+  if (!t.isCallExpression(arg)) return
+  const calleeName = t.isIdentifier(arg.callee) ? arg.callee.name
+    : t.isMemberExpression(arg.callee) && t.isIdentifier(arg.callee.property) ? arg.callee.property.name
+    : ''
+  const isState = calleeName === 'mapState' || calleeName === 'mapGetters'
+  const isAction = calleeName === 'mapMutations' || calleeName === 'mapActions'
+  if (!isState && !isAction) return
+  const add = isState ? addState : addAction
+  for (const a of arg.arguments) {
+    if (t.isArrayExpression(a)) {
+      for (const el of a.elements) {
+        if (t.isStringLiteral(el)) add(String((el as any).value))
+        else if (t.isIdentifier(el)) add(el.name)
+      }
+    } else if (t.isObjectExpression(a)) {
+      for (const prop of a.properties) {
+        if (!t.isObjectProperty(prop)) continue
+        if (!t.isIdentifier(prop.key) && !t.isStringLiteral(prop.key)) continue
+        const name = t.isIdentifier(prop.key) ? prop.key.name : (prop.key as any).value
+        add(name)
+      }
+    }
+  }
+}
+
+/**
+ * 从 file.path 推断一个合理的 Pinia store 名 (e.g. login.vue → "useLoginStore").
+ * 仅作为 fallback hint; 真实项目里 store 名通常不与组件同名, 标记 review 让用户调整。
+ */
+function inferStoreNameFromFile(file: FileNode): string {
+  const path = (file?.path || '').toString()
+  // 提取文件名 (去掉扩展名)
+  const m = path.replace(/\\/g, '/').match(/\/([^/]+?)(?:\.vue|\.js|\.ts)?$/)
+  const base = m ? m[1] : 'App'
+  // 驼峰化: 首字母大写, 后续保留
+  const pascal = base.charAt(0).toUpperCase() + base.slice(1)
+  // store 名字里去除常见后缀 (View, Page, Component) 避免误导
+  const cleaned = pascal.replace(/(View|Page|Component)$/, '')
+  return `use${cleaned || pascal}Store`
 }
 
 function replaceThisInBody(
@@ -938,7 +1172,13 @@ function replaceThisInBody(
   })
 
   // 2. this.$refs[xxx] (dynamic) -> (__refsMap[xxx] as any)?.value
-  s = s.replace(/this\.\$refs\[\s*([^\]]+?)\s*\]/g, '(__refsMap[$1] as any)?.value')
+  //    TS:  (__refsMap[$1] as any)?.value
+  //    JS:  __refsMap[$1]?.value  (no `as any` cast — runtime works either way)
+  if (result.isTs) {
+    s = s.replace(/this\.\$refs\[\s*([^\]]+?)\s*\]/g, '(__refsMap[$1] as any)?.value')
+  } else {
+    s = s.replace(/this\.\$refs\[\s*([^\]]+?)\s*\]/g, '__refsMap[$1]?.value')
+  }
 
   // 3. this.$emit -> emit
   s = s.replace(/\bthis\.\$emit\b/g, 'emit')
@@ -1031,8 +1271,14 @@ function replaceThisInBody(
   // 12. this.xxx (data field) -> name.value (if ref) or name (if reactive)
   //     但 reactive 字段重赋值要在这一步之前处理 (12.5 提前), 否则 this.x 被替换为 x 后正则匹配不到
   // 12.5 reactive field reassignment:
-  //     this.items = expr  ->  items.splice(0, items.length, ...expr)
-  //     支持 multi-line object/array literal (用平衡大括号扫描)
+  //   - array field:   this.items = expr  ->  items.splice(0, items.length, ...expr)
+  //   - object field:  this.obj   = expr  ->  Object.assign(obj, expr)
+  //                    (Vue 3 reactive const can't be reassigned; Object.assign merges
+  //                     keys and preserves reactivity. Slightly differs from "replace
+  //                     whole" semantics but keeps the call site valid at runtime.)
+  //   - [literal]:   always splice (literal is array)
+  //   - {literal}:   always Object.assign (literal is object)
+  //   - other expr:  branch by f.isArray
   for (const f of data.fields) {
     if (f.kind !== 'reactive') continue
     const re = new RegExp(`(\\bthis\\.${f.name})\\s*=\\s*`, 'g')
@@ -1090,10 +1336,14 @@ function replaceThisInBody(
         //       应改为 x.splice(0, x.length, ...(data.records || []))
         const needsParens = /[&|?][&|?]?|\?[^:]/.test(expr)
         const wrappedExpr = needsParens ? `(${expr})` : expr
+        // 选 splice 还是 Object.assign: 用 f.isArray 判断（来自 parseData 时记录的初始化类型）
+        const replacement = f.isArray
+          ? `${f.name}.splice(0, ${f.name}.length, ...${wrappedExpr})`
+          : `Object.assign(${f.name}, ${wrappedExpr})`
         replacements.push({
           start: m.index,
           end: j,
-          replacement: `${f.name}.splice(0, ${f.name}.length, ...${wrappedExpr})`,
+          replacement,
           expr,
         })
         re.lastIndex = j
@@ -1130,10 +1380,15 @@ function replaceThisInBody(
       if (depth !== 0) continue
       const expr = s.slice(i, k + 1)
       // expr 应该包含 { ... } 或 [ ... ]
+      //   [ ... ] -> splice (字面量是数组)
+      //   { ... } -> Object.assign (字面量是对象)
+      const replacement = openChar === '['
+        ? `${f.name}.splice(0, ${f.name}.length, ...${expr})`
+        : `Object.assign(${f.name}, ${expr})`
       replacements.push({
         start: m.index,
         end: k + 1,
-        replacement: `${f.name}.splice(0, ${f.name}.length, ...${expr})`,
+        replacement,
         expr,
       })
       re.lastIndex = k + 1
@@ -1142,9 +1397,6 @@ function replaceThisInBody(
     for (let r = replacements.length - 1; r >= 0; r--) {
       const { start, end, replacement, expr } = replacements[r]
       s = s.slice(0, start) + replacement + s.slice(end)
-      result.reviewItems.push(
-        `reactive field "${f.name}" reassigned via "this.${f.name} = ${expr.substring(0, 50)}${expr.length > 50 ? '...' : ''}". Vue 3 reactive 不能整体重新赋值, 已转 splice(0, ${f.name}.length, ...).`,
-      )
     }
   }
 
@@ -1158,6 +1410,29 @@ function replaceThisInBody(
   }
 
   // 13. this.xxx (method/computed) -> xxx
+  //     Bug fix (P1-4): in Vue 2, `this.specs.push(...)` mutates the array
+  //     returned by the computed getter. After migration, `specs` is a
+  //     ComputedRef object, so the naive translation `specs.push(...)`
+  //     throws TypeError ("specs.push is not a function"). Pre-process
+  //     `this.<computed>.<method>` patterns to insert `.value`, so the
+  //     post-pass simple `this.<computed>` -> `<computed>` replacement is
+  //     safe for plain references while method-call sites correctly
+  //     become `<computed>.value.<method>(...)`. Also flag a review note
+  //     explaining that mutations on a computed still don't persist
+  //     (each access returns a fresh value) — users should switch to a
+  //     writable ref/data field for true mutation semantics.
+  const computedsUsedAsMethodCall = new Set<string>()
+  for (const c of computeds) {
+    // Match: this.<c.name>.<identifier>   (e.g. this.specs.push / this.fullList.filter)
+    // The trailing identifier is the property/method being accessed.
+    // Use a non-word-boundary after the method name so calls like
+    // `this.specs.push(` are matched (the `(` is not a word char).
+    const re = new RegExp(`\\bthis\\.${c.name}\\.([a-zA-Z_$][\\w$]*)`, 'g')
+    if (re.test(s)) {
+      computedsUsedAsMethodCall.add(c.name)
+      s = s.replace(re, `${c.name}.value.$1`)
+    }
+  }
   for (const m of methods) {
     if (m.isLifecycle) continue
     const re = new RegExp(`\\bthis\\.${m.name}\\b`, 'g')
@@ -1166,6 +1441,14 @@ function replaceThisInBody(
   for (const c of computeds) {
     const re = new RegExp(`\\bthis\\.${c.name}\\b`, 'g')
     s = s.replace(re, c.name)
+  }
+  if (computedsUsedAsMethodCall.size > 0) {
+    const names = Array.from(computedsUsedAsMethodCall).map((n) => `\`${n}\``).join(', ')
+    result.reviewItems.push(
+      `computed 引用语义已改变: ${names} 在 method-call 形式 (xxx.push/pop/splice 等) 自动改写为 \`<name>.value.xxx()\` 以避免运行时 TypeError (ComputedRef 没有对应方法)。` +
+      `\n注意: computed 每次访问都重新求值, push/splice 等 mutation 仍会丢失 (新数组立即被丢弃, 原 data 并未改变)。` +
+      `\n如需真正修改, 请把对应字段改为可写的 ref (例如 \`const ${Array.from(computedsUsedAsMethodCall)[0]} = ref([])\`) 或引入专门的 mutation buffer。`,
+    )
   }
 
   // 13.5 this.xxx (prop) -> props.xxx
@@ -1236,6 +1519,14 @@ function replaceThisInBody(
   }
   // Replace free variables
   for (const v of result.freeVariables) {
+    s = s.replace(new RegExp(`\\bthis\\.${v}\\b`, 'g'), v)
+  }
+  // Replace Vuex state bindings:  this.<state>  ->  <state>.value  (computed ref)
+  for (const v of result.vuexStateNames) {
+    s = s.replace(new RegExp(`\\bthis\\.${v}\\b`, 'g'), `${v}.value`)
+  }
+  // Replace Vuex action bindings:  this.<action>  ->  <action>  (arrow fn)
+  for (const v of result.vuexActionNames) {
     s = s.replace(new RegExp(`\\bthis\\.${v}\\b`, 'g'), v)
   }
 

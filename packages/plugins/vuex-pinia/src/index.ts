@@ -58,6 +58,8 @@ let stateSource: string | null = null
     let actionsSource: string | null = null
 
 // collect const state / getters / mutations / actions = {...} declarations (for new Vuex.Store)
+// iter-041: 同时记录下这些 VariableDeclaration 的 path, 后面转换完后删除它们 (避免死代码)
+    const stateMutationGetterActionPaths: any[] = []
     traverse(ctx.file.scriptAst, {
       VariableDeclaration(path: any) {
         const decl = path.node.declarations[0]
@@ -66,12 +68,16 @@ let stateSource: string | null = null
         const name = decl.id.name
         if (name === 'state') {
           stateSource = ctx.file.source.substring(decl.init.start ?? 0, decl.init.end ?? 0)
+          stateMutationGetterActionPaths.push({ name, path })
         } else if (name === 'getters') {
           gettersSource = ctx.file.source.substring(decl.init.start ?? 0, decl.init.end ?? 0)
+          stateMutationGetterActionPaths.push({ name, path })
         } else if (name === 'mutations') {
           mutationsSource = ctx.file.source.substring(decl.init.start ?? 0, decl.init.end ?? 0)
+          stateMutationGetterActionPaths.push({ name, path })
         } else if (name === 'actions') {
           actionsSource = ctx.file.source.substring(decl.init.start ?? 0, decl.init.end ?? 0)
+          stateMutationGetterActionPaths.push({ name, path })
         }
       },
     })
@@ -107,23 +113,65 @@ let stateSource: string | null = null
       const hasInlineState = options.properties.some(
         (p: any) => t.isObjectProperty(p) && t.isIdentifier(p.key, { name: 'state' }),
       )
+      if (process.env.DBG_VUEX) console.error(`[DBG_VUEX] ${ctx.file.path}: modulesProp=${!!modulesProp}, hasInlineState=${hasInlineState}`)
       if (modulesProp && !hasInlineState) {
         // 收集 module 名字
         const modNode = (modulesProp as any).value
         const moduleNames: string[] = []
+        const moduleMap: Record<string, string> = {}  // name → import path
         if (t.isObjectExpression(modNode)) {
           for (const p of modNode.properties) {
             if (t.isObjectProperty(p) && t.isIdentifier(p.key)) {
-              moduleNames.push((p.key as t.Identifier).name)
+              const name = (p.key as t.Identifier).name
+              moduleNames.push(name)
+              // iter-042e: 找 module 的 import 路径 (扫同文件 import)
+              let importPath: string | null = null
+              if (t.isIdentifier((p as any).value)) {
+                const localName = ((p as any).value as t.Identifier).name
+                importPath = findImportPath(ctx.file, localName) || localName
+              }
+              moduleMap[name] = importPath || name
             }
           }
         }
+        // iter-042e: 给具体迁移模板 (含每个 module 的 import 路径)
+        const moduleTemplate = moduleNames.map((n) => {
+          const p = moduleMap[n]
+          return `  // ${n} 模块 → ${p}
+  // 1) 把 ${p} 的内容拆成: state() / getters / actions
+  // 2) 创建 store/${n}.ts:
+  //      import { defineStore } from 'pinia'
+  //      export const use${n.charAt(0).toUpperCase() + n.slice(1)}Store = defineStore('${n}', {
+  //        state: () => ({ /* ${p} 的 state */ }),
+  //        getters: { /* ${p} 的 getters */ },
+  //        actions: { /* ${p} 的 actions (含原 mutations 改名) */ },
+  //      })`
+        }).join('\n')
+        // iter-043: modules 值是 identifier 形式 (e.g. `modules: modulesConst`) — 名字未知,
+        // 但仍然是 modules 模式, 跳过自动转换. 之前的代码会 fall through 试图把 `modules`
+        // 当 state 转换, 结果 codegen 输出 `import { ... }` 在 function body 里, 触发
+        // "import/export may only appear at the top level" 错误.
+        const moduleHint = moduleNames.length > 0
+          ? `modules: {${moduleNames.join(', ')}, ...}`
+          : `modules: <非字面量 — 你的 modules 是用 const modules = ... 或类似动态方式构造的>`
         reviewItems.push(
-          `[#15b vuex modules] 检测到 new Vuex.Store({modules: {${moduleNames.join(', ')}, ...}, getters}) — modules 模式。Pinia 没有 modules 概念,需手动迁移: 每个 module (${moduleNames.join(', ')}) 改成 export const useXxxStore = defineStore('xxx', {state, getters, actions})。原 getters/mutations 合并到对应 store 的 getters/actions。Vue 组件里的 this.$store.state.xxx 改成 store.xxx, dispatch 改成 store.action()。`,
+          `[#15b vuex modules] 检测到 new Vuex.Store({${moduleHint}, getters}) — modules 模式。Pinia 没有 modules 概念,需手动迁移每个 module:\n${moduleTemplate || '(module 名字未知, 需要打开 ./store/modules/ 目录看每个 module.js 的 default export 名字)'}\n\n原 getters/mutations 合并到对应 store。Vue 组件里的 this.$store.state.<modName>.yyy 改成 useXxxStore().yyy, dispatch 改成 store.action()。`,
         )
         // iter-034 #15b: 把 vuexStoreCall 置 null 跳过整个 if 块剩余部分(自动转换会误把 modules 当 state)
         vuexStoreCall = null
         hasModules = true
+      }
+
+      // iter-043: modules 模式 → 跳过整个 if 块剩余部分, 不做自动转换.
+      // 之前是设 vuexStoreCall = null 但 continue, 结果下面的 inline 提取 + 构造
+      // exportDecl + replaceWith 仍会跑, 试图把 `new Vuex.Store({modules, ...})` 
+      // 转成 `export const useStoreStore = defineStore('store', {})`, 然后 codegen 把它
+      // 包成 IIFE (function() { export ... }()) 输出 "import/export may only appear 
+      // at the top level" 错. 修复: early return.
+      if (hasModules) {
+        // 别忘了: import Vue from 'vue' / import Vuex from 'vuex' 也清掉 (vue3-entry 会做)
+        // 这里只 push review, 不删 import (避免误删用户后续可能用到的引用)
+        return
       }
 
       // 从 options 提取 inline state/getters/mutations/actions
@@ -254,6 +302,22 @@ for (const expr of dynamicCommits) {
         changed = true
       }
 
+      // iter-041: 删除原顶层 const state / mutations / actions / getters 声明
+      // 已经被合并进 defineStore 内, 留着会跟新的 const 重复定义 (Identifier 'state' has already been declared)
+      for (const { path } of stateMutationGetterActionPaths) {
+        try {
+          // 也删除后面的分号: 用 path.parentPath.remove + manual
+          if (path?.remove) path.remove()
+        } catch { /* ignore */ }
+      }
+      // 提示 store 名: 如果 storeName 是 'store' (推断不出具体业务名), 标 review 让用户改
+      if (storeName === 'store') {
+        reviewItems.push(
+          `Pinia store id 推断为 "store" (太通用, 建议改成具体业务名, 例如 "useAdminStore")。` +
+          `\n  → 改 export const useStoreStore = defineStore("store", ...) 的两处: 第一个字符串 ("store") 和 export 名字 (useStoreStore)。`,
+        )
+      }
+
       // 同时如果有 `export default xxx`，需要替换
       // 简化：删除 export default 整行（用户在 main.js 里 import 默认值会需要改）
       // 这里只标 review
@@ -264,36 +328,32 @@ for (const expr of dynamicCommits) {
       // 仅有 import Vuex from 'vuex' 但没 new Vuex.Store — 标 review
       // 只在 file 实际用了 mapState/mapActions/mapMutations/mapGetters 时才加
       // （单纯 `import Vuex from 'vuex'` 但没用到的话，转换后代码仍可工作）
-      let usedVuexHelpers = false
-      traverse(ctx.file.scriptAst, {
-        CallExpression(path: any) {
-          const node = path.node
-          if (
-            t.isIdentifier(node.callee) &&
-            /^(mapState|mapGetters|mapMutations|mapActions)$/.test(node.callee.name)
-          ) {
-            usedVuexHelpers = true
-          } else if (
-            t.isMemberExpression(node.callee) &&
-            t.isIdentifier(node.callee.object) &&
-            /^map(State|Getters|Mutations|Actions)$/.test(node.callee.object.name)
-          ) {
-            usedVuexHelpers = true
-          }
-        },
-      })
-      if (usedVuexHelpers) {
-        reviewItems.push(
-          '检测到 import Vuex + mapState/mapActions 等 helpers（但未找到 new Vuex.Store）。请手动迁移到 Pinia（推荐 defineStore + actions）。',
-        )
-      }
+      //
+      // 注意：vuex-pinia 跑在 composition 之前，**不知道** composition 后续
+      // 会不会把 `...mapState(['x'])` 重写成 `let x`（free var）。所以我们
+      // 不在 vuex-pinia 阶段就标这个 review，而是先标 "候补"，由 composition
+      // 在最后阶段用 `ctx.utils.manualReview(...)` 的合并去重 / 静默掉。
+      // 简单做法：直接不标，import-cleaner 会清掉 import，composition
+      // 会标 "free variable" review —— 用户看到的提示就是同一个意图。
     }
 
     // 处理 import Vuex from 'vuex'（改为 pinia 的 defineStore）
+    // 与 import { mapState, ... } from 'vuex'（删掉，mapXxx 已被 composition 转写）
     traverse(ctx.file.scriptAst, {
       ImportDeclaration(path: any) {
         if (!t.isStringLiteral(path.node.source, { value: 'vuex' }))
         return
+        // 检查是否是 named import (e.g. `import { mapState } from 'vuex'`)
+        const hasNamedSpec = path.node.specifiers.some(
+          (s: any) => t.isImportSpecifier(s),
+        )
+        if (hasNamedSpec) {
+          // mapXxx 已被 composition 重写为 free variables；
+          // 这个 import 没人用了，import-cleaner 会清。
+          // 这里只标 marked，留给 import-cleaner 真正删。
+          // 不重写 source，避免顺序依赖。
+          return
+        }
         // 改为 import { defineStore } from 'pinia'
         path.node.source = t.stringLiteral('pinia')
         // 清空 specifiers
@@ -331,6 +391,33 @@ for (const expr of dynamicCommits) {
  * 从 file path 推断 store 名：store/index.js → 'store'
  * store/modules/user.js → 'user'
  */
+/**
+ * iter-042e: 扫 AST 找 import { localName } from '...' 的路径
+ */
+function findImportPath(file: any, localName: string): string | null {
+  const ast = file.scriptAst
+  if (!ast || !t.isFile(ast)) return null
+  let found: string | null = null
+  traverse(ast, {
+    ImportDeclaration(path: any) {
+      for (const spec of path.node.specifiers) {
+        // import localName from '...'
+        if (t.isImportDefaultSpecifier(spec) && t.isIdentifier(spec.local, { name: localName })) {
+          found = (path.node.source as any).value
+          return
+        }
+        // import { localName as xxx } from '...' — 也匹配 xxx
+        if (t.isImportSpecifier(spec) && t.isIdentifier(spec.local, { name: localName })) {
+          // imported 是原始名字, 我们 match local (即 alias)
+          found = (path.node.source as any).value
+          return
+        }
+      }
+    },
+  })
+  return found
+}
+
 function inferStoreNameFromPath(filePath: string): string | null {
   if (!filePath)
   return null
