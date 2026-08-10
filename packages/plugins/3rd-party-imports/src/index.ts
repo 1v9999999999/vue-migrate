@@ -26,11 +26,9 @@ import {
 } from './rules/import-default-to-namespace.js'
 
 const DEFAULT_TO_NAMESPACE_RULES: DefaultToNamespaceRule[] = [
-  {
-    name: 'screenfull',
-    localName: 'screenfull',
-    reason: 'screenfull v6 ESM 升级, namespace import 更稳',
-  },
+  // screenfull v6 只有 default export (`export default screenfull`),
+  // 不能 namespace import (会变成 screenfull.default.x)
+  // 保持 default import 即可, Vite interop 正常
 ]
 
 const plugin: TransformPlugin = {

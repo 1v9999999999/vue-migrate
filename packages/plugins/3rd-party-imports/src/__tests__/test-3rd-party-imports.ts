@@ -138,75 +138,78 @@ console.log('\n[fixEchartsImports]')
 // ============ fixDefaultToNamespace ============
 console.log('\n[fixDefaultToNamespace]')
 
-// 1) screenfull 改 namespace
+// 1) 通用规则：default import 改 namespace import（screenfull 不能用此规则因为只有 default export）
 {
-  const ctx = makeCtx(`import screenfull from 'screenfull'`)
+  const ctx = makeCtx(`import myPkg from 'my-test-pkg'`)
   const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', localName: 'screenfull', reason: 'test' },
+    { name: 'my-test-pkg', reason: 'test' },
   ])
-  assertTrue('screenfull 触发 changed', r.changed)
-  assertTrue('hits 含 screenfull', r.hits.some((h) => h.includes('screenfull')))
+  assertTrue('通用规则触发 changed', r.changed)
   const out = genSource(ctx.file.scriptAst)
-  assertTrue('输出 * as screenfull', out.includes('* as screenfull'))
+  assertTrue('输出 * as myPkg', out.includes('* as myPkg'))
 }
 
 // 2) 不在 rules 里的不动
 {
   const ctx = makeCtx(`import Vue from 'vue'`)
   const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', reason: 'test' },
+    { name: 'my-test-pkg', reason: 'test' },
   ])
   assertTrue('非规则包不动', !r.changed)
 }
 
 // 3) 已经是 named import 不动
 {
-  const ctx = makeCtx(`import { foo } from 'screenfull'`)
+  const ctx = makeCtx(`import { foo } from 'my-test-pkg'`)
   const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', reason: 'test' },
+    { name: 'my-test-pkg', reason: 'test' },
   ])
   assertTrue('named 形式不动', !r.changed)
 }
 
 // 4) 已经是 namespace 不动
 {
-  const ctx = makeCtx(`import * as screenfull from 'screenfull'`)
+  const ctx = makeCtx(`import * as foo from 'my-test-pkg'`)
   const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', reason: 'test' },
+    { name: 'my-test-pkg', reason: 'test' },
   ])
   assertTrue('namespace 形式不动', !r.changed)
 }
 
 // 5) sub-path 不动
 {
-  const ctx = makeCtx(`import x from 'screenfull/lib/index'`)
+  const ctx = makeCtx(`import x from 'my-test-pkg/lib/index'`)
   const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', reason: 'test' },
+    { name: 'my-test-pkg', reason: 'test' },
   ])
   assertTrue('sub-path 不动', !r.changed)
 }
 
 // 6) 多个 rules
 {
-  const ctx = makeCtx(`import a from 'screenfull'\nimport b from 'foo-bar'`)
+  const ctx = makeCtx(`import a from 'pkg-a'\nimport b from 'pkg-b'`)
   const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', reason: 'r1' },
-    { name: 'foo-bar', reason: 'r2' },
+    { name: 'pkg-a', reason: 'r1' },
+    { name: 'pkg-b', reason: 'r2' },
   ])
   assertTrue('多 rules 都改', r.changed)
   assertTrue('hits 包含 2 项', r.hits.length === 2)
 }
 
-// 7) 复合 import: default + namespace 共存
+// 7) 复合 import: echarts (专用规则) + my-test-pkg (通用规则) 共存
 {
-  const ctx = makeCtx(`import screenfull from 'screenfull'\nimport * as echarts from 'echarts'`)
-  const r = fixDefaultToNamespace(ctx, [
-    { name: 'screenfull', reason: 'test' },
+  const ctx = makeCtx(`import echarts from 'echarts'\nimport Foo from 'my-test-pkg'`)
+  // 先跑 echarts 专用规则
+  const r1 = fixEchartsImports(ctx)
+  // 再跑通用规则
+  const r2 = fixDefaultToNamespace(ctx, [
+    { name: 'my-test-pkg', reason: 'test' },
   ])
-  assertTrue('screenfull 改', r.changed)
+  assertTrue('echarts 触发', r1.changed)
+  assertTrue('my-test-pkg 触发', r2.changed)
   const out = genSource(ctx.file.scriptAst)
-  assertTrue('echarts 保留 namespace', out.includes('* as echarts'))
-  assertTrue('screenfull 改 namespace', out.includes('* as screenfull'))
+  assertTrue('echarts 改 namespace', out.includes('* as echarts'))
+  assertTrue('my-test-pkg 改 namespace', out.includes('* as Foo'))
 }
 
 // ============ 总结 ============

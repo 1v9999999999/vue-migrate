@@ -81,7 +81,7 @@ export const DEP_MAP: Record<string, DepMapEntry> = {
     name: 'screenfull',
     version: '^6.0.0',
     manualReview:
-      'screenfull v4→v6 升级到 ESM；API 基本兼容。Screenfull/index.vue 需把 `import screenfull from "screenfull"` 改为 `import screenfull from "screenfull"`（v6 默认导出 ESM）或 `import * as screenfull from "screenfull"`。',
+      'screenfull v4→v6 升级到 ESM（但只有 default export）；API 完全兼容。`import screenfull from "screenfull"` 在 Vite 5 下能直接跑，无需改 namespace import。',
   },
   // driver.js: 0.x 老旧 → 1.x 改 API
   'driver.js': {
