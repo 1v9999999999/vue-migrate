@@ -109,16 +109,10 @@ function cleanUnusedImportsFromSource(file: any, ctx: any): void {
   //   而不是 regex — 避免 <script> 在 template/comment 里的误匹配
   const sfcScript = file.sfc?.script
   if (!sfcScript || sfcScript.loc == null) {
-    // 非 .vue 文件, 退回 regex (rare case)
-    const scriptOpenRe = /<script\b[^>]*>/i
-    const scriptCloseRe = /<\/script>/i
-    const openMatch = scriptOpenRe.exec(source)
-    if (!openMatch) return
-    const openTagEnd = openMatch.index + openMatch[0].length
-    const afterOpen = source.slice(openTagEnd)
-    const closeMatch = scriptCloseRe.exec(afterOpen)
-    if (!closeMatch) return
-    return cleanImportsInRange(source, openTagEnd, openTagEnd + closeMatch.index, closeMatch.index, file, ctx)
+    // 非 .vue 文件 / 没有 SFC 定位: 整段 source 当 script
+    //   - raw .js / .ts: 整个文件就是脚本
+    //   - .vue 但 sfc.script 没 loc: fallback 整段 source
+    return cleanImportsInRange(source, 0, source.length, source.length, file, ctx)
   }
   // Resync sfc.script.loc from current file.source. Some upstream plugins
   // (notably composition) write a wrong loc.start.offset (= position of `<script`
@@ -187,6 +181,8 @@ function cleanImportsInRange(source: string, openTagEnd: number, closeTagStart: 
     importPath: any
     spec: any
     localName: string
+    kind: 'default' | 'named' | 'namespace'
+    refs: number
   }
   const specs: SpecInfo[] = []
   // `noScope: true` disables babel's scope tracking, which would otherwise
@@ -199,14 +195,18 @@ function cleanImportsInRange(source: string, openTagEnd: number, closeTagStart: 
     ImportDeclaration(path: any) {
       for (const spec of path.node.specifiers) {
         let localName: string | null = null
+        let kind: 'default' | 'named' | 'namespace' | null = null
         if (t.isImportDefaultSpecifier(spec) && t.isIdentifier(spec.local)) {
           localName = spec.local.name
+          kind = 'default'
         } else if (t.isImportSpecifier(spec) && t.isIdentifier(spec.local)) {
           localName = spec.local.name
+          kind = 'named'
         } else if (t.isImportNamespaceSpecifier(spec) && t.isIdentifier(spec.local)) {
           localName = spec.local.name
+          kind = 'namespace'
         }
-        if (localName) specs.push({ importPath: path, spec, localName })
+        if (localName && kind) specs.push({ importPath: path, spec, localName, kind, refs: -1 })
       }
     },
   })
@@ -224,6 +224,7 @@ function cleanImportsInRange(source: string, openTagEnd: number, closeTagStart: 
     const scriptRefs = findReferences(ast, info.localName, info.spec, info.importPath)
     const tplRefs = templateRefs.has(info.localName) ? 1 : 0
     const refs = scriptRefs + tplRefs
+    info.refs = refs
     if (refs === 0) {
       const importNode = info.importPath.node
       importNode.specifiers = importNode.specifiers.filter((s: any) => s !== info.spec)
@@ -323,6 +324,43 @@ function cleanImportsInRange(source: string, openTagEnd: number, closeTagStart: 
   if (process.env.DBG_IMPCLEAN3 && /addGoods|foodList/.test(file.path)) {
     console.log('[DBG-IMPCLEAN-DONE]', file.path, 'removed=', removed)
   }
+
+  // 同步改 file.scriptAst: 把上面删掉的 specifier 也在原 AST 里删掉
+  //   - 测试用 generate(file.scriptAst) 验证 (不能只改 file.source)
+  //   - 真实 codegen 走 file.scriptAst 时也看到这个改动
+  //   - 匹配键: (source.value, localName, specKind) — 三者同时匹配才删
+  //   - 跳过 import-cleaner 自己的 re-parsed AST (already mutated)
+  const scriptAst = file.scriptAst
+  if (scriptAst && t.isFile(scriptAst) && scriptAst !== ast) {
+    for (const info of specs) {
+      // 只有真正被删的 (refs===0) 才同步
+      if (info.refs !== 0) continue
+      // 从 re-parsed AST 的 importNode 拿 source 字符串
+      const srcVal = info.importPath?.node?.source?.value
+      if (typeof srcVal !== 'string') continue
+      // 在 file.scriptAst 找同源同 spec 的 import declaration
+      traverse(scriptAst, {
+        noScope: true,
+        ImportDeclaration(p: any) {
+          if (p.node.source?.value !== srcVal) return
+          p.node.specifiers = p.node.specifiers.filter((s: any) => {
+            if (t.isImportDefaultSpecifier(s) && info.kind === 'default') {
+              return s.local?.name !== info.localName
+            }
+            if (t.isImportSpecifier(s) && info.kind === 'named') {
+              // 比 imported 名还是 local 名? iter-042c 默认比 local
+              return s.local?.name !== info.localName
+            }
+            if (t.isImportNamespaceSpecifier(s) && info.kind === 'namespace') {
+              return s.local?.name !== info.localName
+            }
+            return true  // 其他保留
+          })
+        },
+      })
+    }
+  }
+
   ctx.utils.markChanged(`removed ${removed} unused import specifier(s) (from raw source)`)
 }
 
