@@ -529,3 +529,49 @@ vue-migrate transform <src> --ts
 - tests: 172/172 pass (130 + 42)
 - baseline: 2 sample (vue2-sample + test-template, no package.json) 行为不变
 
+
+## iter-039: #15c import Vue from 'vue' 自动清理
+
+**问题**：vue3-entry 把 Vue.use/filter/config.*/new Vue() 全转成 Vue3 等价物后，import Vue from 'vue' 这行就成 unused import 了，但之前没清理。
+
+**修复**：
+- packages/plugins/vue3-entry/src/utils.ts 新增 emoveVueDefaultImportIfUnused(file, markChanged)
+- packages/plugins/vue3-entry/src/index.ts transform 用 try/finally 包 entry 流程，保证 finally 块**无论 early return 与否都跑**（包括 line 104 if (!isEntry) return）
+- 扫描 AST 找 import Vue from 'vue' + 找 Vue 标识符的 ReferencedIdentifier 引用
+- 0 引用时：
+  - 整个 import 还有 named specifier → 只移除 default Vue specifier
+  - 整个 import 只有 default → 整条 import 删
+
+**典型输出**（PanJiaChen/vue-element-admin main.js）：
+
+`diff
+- import Vue, { defineComponent, createApp } from 'vue';
++ import { defineComponent, createApp } from 'vue';
+`
+
+**关键设计**：
+- 必须在 entry 流程**之后**跑（finally 模式）：如果放在 transform 开头，Vue.use/filter 还在，检测会误判 Vue 还在用，import 留下
+- 扫描走 ReferencedIdentifier（不是 Identifier），自动跳过 binding identifier（import 自己的 local）
+- 防御性：walk up 检查 path 是否在 import 声明里（防止 binding 被误判为 reference）
+
+**12 个单元测试**（test-remove-vue-import.ts）：
+- import Vue + named imports + 无引用 → 移除 default specifier ✓
+- import Vue (无 named) + 无引用 → 整条删 ✓
+- import Vue + Vue.use() 还在 → 保留 ✓
+- import Vue + new Vue() 还在 → 保留 ✓
+- import Vue + Vue.config.productionTip 还在 → 保留 ✓
+- import Vue + Vue.extend() 还在 → 保留 ✓
+- import Vue + Vue.version 还在 → 保留 ✓
+- import Vue + Vue.someUnknown() 还在 → 保留（保守策略） ✓
+- 没有 import Vue → 无操作 ✓
+- import Vue + Vue.someUnknown() 还在 → 保留 ✓
+
+**0 回归**：
+- tsc: 13/13 packages clean
+- tests: 184/184 pass (172 + 12 new)
+- baseline: 2 sample (vue2-sample + test-template) 行为不变
+
+**已知限制**（标记 minor，不打算修）：
+- 如果用户代码里有 import Vue from 'vue' + 用 Vue.someUnknownAPI() 我们没识别，会**保留** import（保守策略）
+- 实际效果：不会有错误的 import 删除，最多保留一些真该删但没删的 import
+

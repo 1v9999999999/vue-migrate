@@ -127,6 +127,19 @@ importers:
         specifier: ^5.5.0
         version: 5.5.2
 
+  packages/plugins/package-json:
+    dependencies:
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
   packages/plugins/vue-router-v4:
     dependencies:
       '@babel/traverse':
@@ -199,6 +212,9 @@ importers:
         specifier: workspace:*
         version: link:../../core
     devDependencies:
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1

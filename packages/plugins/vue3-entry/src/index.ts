@@ -24,7 +24,7 @@ import * as t from '@babel/types'
 import _traverse from '@babel/traverse'
 import _generate from '@babel/generator'
 import type { TransformPlugin, TransformContext } from '@vue-migrate/core'
-import { isVueStaticMember, getVueChainAssignment, ensureVueImport } from './utils.js'
+import { isVueStaticMember, getVueChainAssignment, ensureVueImport, removeVueDefaultImportIfUnused } from './utils.js'
 
 // ESM-safe: babel parser/traverse/generator may have .default or not depending on entry
 const _traverseObj: any = (_traverse as any)
@@ -66,13 +66,29 @@ const plugin: TransformPlugin = {
     const { file, utils } = ctx
     if (!file.scriptAst) return
 
-    let needsReactiveImport = false
+    // ----- iter-039 (#15c) finally: 清理孤立的 `import Vue from 'vue'` -----
+    // 用 try/finally 保证无论 early return 与否都跑 (line 104 `if (!isEntry) return`)
+    // 此时所有 Vue.use/filter/config/new Vue() 都已处理, 扫 AST 找 Vue 标识符引用
+    // 0 引用则移除 default specifier (整个 import 没 specifier 时整条删)
+    try {
+      _runEntryTransform(ctx)
+    } finally {
+      removeVueDefaultImportIfUnused(file, (msg?: string) => utils.markChanged(msg || ''))
+    }
+  },
+}
+
+function _runEntryTransform(ctx: TransformContext): void {
+  const { file, utils } = ctx
+  if (!file.scriptAst) return
+  const scriptAst = file.scriptAst
+  let needsReactiveImport = false
     let needsCreateAppImport = true
     let needsDefineComponentImport = false
     let changed = false
 
     // ----- 1. Vue.observable(x) → reactive(x) -----
-    traverse(file.scriptAst, {
+    traverse(scriptAst, {
       CallExpression(path: any) {
         if (isVueStaticMember(path.node, 'observable')) {
           path.node.callee = t.identifier('reactive')
@@ -109,7 +125,7 @@ const plugin: TransformPlugin = {
     let entryChain: EntryChain | null = null
     let entryChainRef: { v: EntryChain | null } = { v: null }
 
-    traverse(file.scriptAst, {
+    traverse(scriptAst, {
       CallExpression(path: any) {
         const node = path.node
         // iter-032: 同时认 `.$mount(` (vue2) 和 `.mount(` (vue3 / 已被 vue2-compat 转换)
@@ -181,7 +197,6 @@ const plugin: TransformPlugin = {
       if (t.isObjectExpression(defArg)) renderCheckObj = defArg
     }
     if (renderCheckObj) {
-      console.log(`[vue3-entry DEBUG] renderCheckObj found, ${renderCheckObj.properties.length} props`)
       const renderProp = renderCheckObj.properties.find(
         (p: any) =>
           t.isObjectProperty(p) && t.isIdentifier(p.key, { name: 'render' }),
@@ -254,7 +269,7 @@ const plugin: TransformPlugin = {
     }
 
     // 4b. Scan all top-level (or top-level-of-nested-block) statements for Vue.x() calls and config assignments
-    traverse(file.scriptAst, {
+    traverse(scriptAst, {
       ExpressionStatement(path: any) {
         const expr = path.node.expression
 
@@ -502,7 +517,6 @@ const plugin: TransformPlugin = {
         `[vue3-entry] entry chain → createApp().mount('${mountArg}') (${pluginCount} chained calls)`,
       )
     }
-  },
 }
 
 import { registerPlugin } from '@vue-migrate/core'

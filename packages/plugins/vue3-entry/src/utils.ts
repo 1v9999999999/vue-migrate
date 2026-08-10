@@ -3,7 +3,12 @@
  */
 
 import * as t from '@babel/types'
+import _traverse from '@babel/traverse'
 import type { Node } from '@babel/types'
+
+// ESM-safe: babel traverse may have .default or not depending on entry
+const _traverseObj: any = (_traverse as any)
+const traverse = (_traverseObj.default || _traverseObj) as typeof _traverse
 
 /**
  * Check if `node` is a member access of the form `Vue.<name>` (or `vue.<name>`).
@@ -81,6 +86,79 @@ export function ensureVueImport(file: { scriptAst?: Node | null }, names: string
     )
     ast.program.body.unshift(newImport)
   }
+}
+
+/**
+ * iter-039 (#15c): clean up orphan `import Vue from 'vue'`.
+ *
+ * After vue3-entry has converted all `Vue.use(...)` / `Vue.filter(...)` /
+ * `Vue.config.*` / `new Vue({...})` etc., the local binding `Vue` may no
+ * longer be referenced anywhere. In that case:
+ *   1) If the `import Vue, { ... } from 'vue'` still has named specifiers,
+ *      drop only the default `Vue` specifier.
+ *   2) If it has no remaining specifiers, drop the whole import statement.
+ *
+ * This is conservative: if we cannot prove `Vue` is unused (e.g. dynamic
+ * refs in template strings we can't trace), we leave the import alone.
+ */
+export function removeVueDefaultImportIfUnused(
+  file: { scriptAst?: Node | null },
+  markChanged: (msg?: string) => void,
+): void {
+  const ast = file.scriptAst
+  if (!ast || !t.isFile(ast)) return
+
+  // 1) Find `import Vue` default specifier from 'vue'
+  let importPath: any = null
+  let importSpec: t.ImportDefaultSpecifier | null = null
+  traverse(ast, {
+    ImportDeclaration(path: any) {
+      if (!t.isStringLiteral(path.node.source, { value: 'vue' })) return
+      const def = path.node.specifiers.find(
+        (s: any) =>
+          t.isImportDefaultSpecifier(s) && t.isIdentifier(s.local, { name: 'Vue' }),
+      )
+      if (def) {
+        importPath = path
+        importSpec = def as t.ImportDefaultSpecifier
+      }
+    },
+  })
+  if (!importPath || !importSpec) return
+
+  // 2) Scan the whole AST (except the import itself) for any `Vue` reference
+  let stillUsed = false
+  traverse(ast, {
+    ReferencedIdentifier(path: any) {
+      if (stillUsed) return
+      if (path.node.name !== 'Vue') return
+      // Skip the import's own local binding
+      if (path.parent === importSpec) return
+      // Skip the import specifier subtree (binding identifier)
+      if (path.parentPath?.isImportDefaultSpecifier && path.parentPath.node === importSpec) return
+      // Walk up to confirm we're not in the import declaration itself
+      let p: any = path.parentPath
+      while (p) {
+        if (p === importPath) return
+        p = p.parentPath
+      }
+      stillUsed = true
+      path.stop()
+    },
+  })
+  if (stillUsed) return
+
+  // 3) Drop the default specifier
+  importPath.node.specifiers = importPath.node.specifiers.filter(
+    (s: any) => s !== importSpec,
+  ) as any
+
+  // 4) If nothing left, drop the whole import
+  if (importPath.node.specifiers.length === 0) {
+    importPath.remove()
+  }
+
+  markChanged("removed orphan `import Vue from 'vue'` (Vue 标识符已无引用)")
 }
 
 /**

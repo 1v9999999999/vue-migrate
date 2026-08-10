@@ -13,6 +13,7 @@ const testFiles = [
   'packages/plugins/vue3-template/src/__tests__/test-editor.ts',
   'packages/plugins/vxe-table/src/__tests__/test-vxe-table.ts',
   'packages/plugins/package-json/src/__tests__/test-package-json.ts',
+  'packages/plugins/vue3-entry/src/__tests__/test-remove-vue-import.ts',
 ]
 
 let totalPass = 0
