@@ -459,3 +459,73 @@ vue-migrate transform <src> --ts
 - 行为差异：默认模式（无 --ts）= 严格 lang 解析，TS 语法文件会 parse fail（用户必须加 lang="ts" 或 --ts）
 - 旧 baseline 行为不变：所有 8 sample 走 default 模式，0 parse error
 
+
+## iter-038: plugin-package-json 完整实现
+
+**新增插件**：@vue-migrate/plugin-package-json（13/13 packages tsc-clean, 42/42 unit tests pass）
+
+**功能**：把项目根目录的 package.json 从 Vue 2 时代转换到 Vue 3 时代。
+
+**3 类转换**：
+- **PJ.1** dependencies / devDependencies 映射（DEP_MAP）：
+  - ue: ^2.x → ue: ^3.4.0
+  - ue-router: ^3.x → ue-router: ^4.2.0
+  - uex: ^3.x → pinia: ^2.1.0（删除 vuex）
+  - element-ui: ^2.x → element-plus: ^2.4.0
+  - ue-template-compiler / ue-cli-plugin-* / @vue/cli-plugin-* / @vue/cli-service → 删除
+  - ue-loader: ^15 → ^17.4.0
+  - @vue/compiler-sfc: ^3
+- **PJ.2** scripts 转换：
+  - serve → dev
+  - ue-cli-service serve → ite
+  - ue-cli-service build → ite build
+  - ue-cli-service lint → eslint --ext .js,.vue,.ts src
+  - ue-cli-service test:unit → itest run
+- **PJ.3** devDependencies 注入 ite: ^5.0.0 + @vitejs/plugin-vue: ^5.0.0（如不存在）
+
+**实现策略**：
+- 用 nalyze 钩子（priority 100，最高）一次性处理 + 写盘
+- 直接调 s.writeFile 不走 ctx.files（scanner 不扫 .json）
+- 写到 ctx.config.outDir ?? ctx.root
+- dry-run 时只打印不写
+
+**典型输出**：
+`json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint --ext .js,.vue,.ts src",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.0",
+    "pinia": "^2.1.0",
+    "element-plus": "^2.4.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "vue-loader": "^17.4.0",
+    "sass": "^1.69.0",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-vue": "^5.0.0"
+  }
+}
+`
+
+**端到端验证**：
+- 输入：含 7 dependencies + 5 devDependencies + 4 scripts 的 Vue2 project
+- 输出：15 项改动全部应用、文件正确写入 outDir/package.json
+- dry-run：打印 15 项计划改动 + 不写盘 ✓
+
+**Priority 100 设计原因**：
+- 让 vue3-entry / vue-router-v4 / vuex-pinia / elementui 先完成所有代码侧转换
+- 这样 package.json 里 vuex 已经被 pinia 替代时，代码侧 + 依赖侧同步
+- 防止 vuex → pinia 的代码侧转换已发生但 package.json 仍写 vuex 的不一致状态
+
+**0 回归**：
+- tsc: 13/13 packages clean
+- tests: 172/172 pass (130 + 42)
+- baseline: 2 sample (vue2-sample + test-template, no package.json) 行为不变
+

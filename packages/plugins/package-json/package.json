@@ -1,0 +1,15 @@
+{
+  "name": "@vue-migrate/plugin-package-json",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Migrate project package.json from Vue 2 era (vue-cli-service, vue-template-compiler, vuex, element-ui, vue-router 3) to Vue 3 era (vite, pinia, element-plus, vue-router 4, @vue/compiler-sfc).",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

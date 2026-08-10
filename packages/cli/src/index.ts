@@ -20,6 +20,7 @@ import '@vue-migrate/plugin-composition'
 import '@vue-migrate/plugin-vue-router-v4'
 import '@vue-migrate/plugin-vuex-pinia'
 import '@vue-migrate/plugin-vxe-table'
+import '@vue-migrate/plugin-package-json'
 
 const program = new Command()
 
