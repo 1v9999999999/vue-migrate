@@ -576,31 +576,6 @@ vue-migrate transform <src> --ts
 - 实际效果：不会有错误的 import 删除，最多保留一些真该删但没删的 import
 
 
-## 约定：plugin 代码不要使用严格 TS 类型
-
-**规则**：遇到 TS 类型问题（Node | undefined 不可赋给 Node、隐式 any 等）时：
-- **直接用 s any / // @ts-ignore 解决**，不纠结类型签名
-- **不要为类型改 plugin 主逻辑结构**（如为了类型加 try/finally、抽函数等）
-- 必要时把 	sconfig.json 的 strict 关闭也可以
-
-**背景**：
-- iter-039 修 #15c 时，我为了解决 Node | undefined 问题，把 entry transform 抽成 _runEntryTransform 函数 + try/finally
-- 实际上直接 	raverse(file.scriptAst as any, ...) 一行就解决了
-- 抽函数 + try/finally 让代码多了 50 行但 0 业务价值，纯粹为了过 TS
-- 以后所有 plugin 都按这个规则：少纠结类型，多关注 AST 转换本身
-
-**推荐写法**：
-`	s
-// ❌ 不要这样
-const scriptAst = file.scriptAst  // 抽出来
-if (!scriptAst) return
-traverse(scriptAst, { ... })
-
-// ✅ 应该这样
-traverse(file.scriptAst as any, { ... })
-`
-
-
 ## iter-040: composition 输出跟随源 lang (JS 源输出纯 JS)
 
 **问题**（用户痛点）：源文件是 <script>（无 lang="ts"）时，composition plugin 输出还是加了 TS 泛型，例如：
