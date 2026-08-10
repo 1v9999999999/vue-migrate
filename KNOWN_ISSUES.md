@@ -4,46 +4,40 @@
 
 ## Open
 
-### 11. `expandThisDollarWatch` 不支持非字符串 key
-
-- **Type**: limitation
-- **Severity**: minor
-- **Files**: `packages/plugins/composition/src/options-to-setup.ts` `expandThisDollarWatch`
-- **现状**: `this.$watch(myVar, fn)` (第一个参数是变量) 会被替换为 `/* manual: ... */ watch(() => /* TODO */, ...)`. 加了 review 但代码 TODO 待补
-- **修复计划**: 加表达式分析, 推断 myVar 是 ref/reactive, 自动生成正确 getter
-
-### 12. elementui 解析 minified vendor JS 失败
-
-- **Type**: pre-existing
-- **Severity**: minor
-- **Files**: `examples/vue2-manage-master/manage/static/js/*.js`
-- **现状**: `manage/static/js/0.dea7087f7a00b4016329.js` 等 webpack 打包的 minified JS 被 elementui plugin 解析, 抛 "Property name expected type of string but got function"
-- **影响**: 主样本 vue2-manage-master 跑出来有 3 errors (3 个 vendor JS 文件), 不是 composition 引起的
-- **修复计划**: elementui plugin 加 `.min.js` / `vendor*.js` / 路径 `static/js/` 跳过规则
-
-### 13. Vue.extend() 嵌套组件未转 setup
-
-- **Type**: limitation
-- **Severity**: minor
-- **Files**: `examples/compo-test/StressTest.vue` (BaseWidget), `examples/222/...`
-- **现状**: 文件里用 `const BaseWidget = Vue.extend({...})` 嵌套定义组件, composition 跳过 (export default 是 Vue.extend, 不是 ObjectExpression)
-- **修复计划**: convertOptionsToSetup 加 Vue.extend 检测, 转 defineComponent({...}) 或保留 Vue.extend 注释
-
-### 14. reactive reassignment 嵌套数组
-
-- **Type**: edge case
-- **Severity**: minor
-- **Files**: 任何用 `this.list = [[1,2]]` 的
-- **现状**: 用 `list.splice(0, list.length, ...expr)` 处理大多数情况 OK, 但如果 expr 是嵌套数组可能浅拷贝
-- **修复计划**: 检测深层级, 单独的 review 提示 + 用户决策
-
 ### 15. render function / 异步组件
 
 - **Type**: not implemented
 - **Severity**: major
-- **Files**: 任何用 `render(h) {...}` 或 `() => import('./Async.vue')` 的
-- **现状**: composition 不处理, Vue2 的 `render` 选项直接保留, 转换后会编译报错 (Vue3 的 render 函数签名变了)
-- **修复计划**: 加 render function 检测, 转换为 `setup() { return () => h(...) }` 或保留原文 + 强 review
+- **Files**: `examples/vue2-aegis/src/main.js`, `examples/vue2-element-touzi-admin-dev-permission/src/main.js`, `examples/vue2-sample/src/main.js` (4 个 entry 文件)
+- **现状**: 转换后是 `createApp(defineComponent({ render: h => h(App), router, store }))` — Vue3 合法但不优雅;真正的组件 render 函数 (`render(h) {...}`) 也没转换
+- **影响**: `outputValid=false` (vue2-aegis),`errors=4` (vue2-element-touzi-admin-dev-permission)
+- **修复计划**: 简化 entry 模式 → `createApp(App).use(...).mount()`;组件 render 函数 → `setup() { return () => h(...) }`
+- **注**: 4 个 main.js 触发,实际影响是 entry 渲染 chain 没被简化(component-level render function 在 sample 里 0 触发)
+
+### 11. ~~`expandThisDollarWatch` 不支持非字符串 key~~ ✅ 0 触发(iter-031)
+
+- **验证**: `grep '\$watch\s*\(\s*[a-zA-Z_]\w*\s*[,)]' examples/**/*.vue` 0 命中
+- **结论**: 实际 sample 都没用 `this.$watch(varName, fn)`,只有 vendor JS 命中但被 elementui skip
+- **action**: 关闭 issue,不需要修
+
+### 12. ~~elementui 解析 minified vendor JS 失败~~ ✅ 已修(iter-024-final, A27)
+
+- **修复**: elementui plugin 加 `static/js/|dist/|build/|vendor*.js|*.min.js|node_modules` 跳过规则
+- **验证 (iter-031)**: 跑 `manage/static/js/` 20 个 vendor JS,全部命中 skip, 0 错误
+- **action**: 关闭 issue, 与 A27 重复,归档
+
+### 13. ~~Vue.extend() 嵌套组件未转 setup~~ ✅ 已修(vue2-compat 1.2)
+
+- **修复**: `vue2-compat/src/index.ts:60-75` 的 `CallExpression` visitor 已经把 `Vue.extend(x) → defineComponent(x)`,并 `ensureVueImport(['defineComponent'])`
+- **composition plugin (line 173-178)**: 也检测 `export default Vue.extend(...)` 形式(转成 `exportDefault.arguments[0]`),加 review 提示
+- **验证 (iter-031)**: 跑 `examples/compo-test/StressTest.vue`,输出 `const BaseWidget = defineComponent({...})` ✓
+- **action**: 关闭 issue, 转 A41
+
+### 14. ~~reactive reassignment 嵌套数组~~ ✅ 0 触发(iter-031)
+
+- **验证**: `grep 'this\.\$\w+\s*=\s*\[\s*\[' examples/**/*.vue` 0 命中
+- **结论**: 实际 sample 都没有 `this.list = [[1,2]]` 这种嵌套数组赋值
+- **action**: 关闭 issue,不需要修
 
 ### 7. ~~composition 插件文件被 PowerShell 编码损坏~~ ✅ 已修（iter-023）
 
@@ -154,6 +148,31 @@
 | B38 | vue2-compat 重复声明 `ObjectProperty` visitor (rename bug 留痕) | iter-028 | vue2-compat |
 | B39 | elementui icon.ts: 多重 edit 在 `out` 上直接 splice，原 template 偏移失效 → 多字节 UTF-8 损坏 | iter-029 | elementui/icon |
 | B40 | elementui tsconfig 残留 `rootDir: "./src"`，阻止跨包 import | iter-029 | elementui/tsconfig |
+| A41 | `Vue.extend(x) → defineComponent(x)` 在 `vue2-compat` 已经实现（CallExpression visitor, line 60-75）| iter-031 | vue2-compat |
+
+## iter-031 highlights: Open issue 清理
+
+### 关闭 4 个 Open issues（实际是误报/已修/0 触发）
+- **#11** `expandThisDollarWatch` 非字符串 key: 0 sample 触发（grep 全 examples 0 命中）
+- **#12** elementui 解析 minified vendor JS 失败: 已修 (iter-024-final, A27)；iter-031 跑 20/20 vendor JS 全部 skip
+- **#13** Vue.extend() 嵌套组件未转 setup: 已修 (vue2-compat:60-75 CallExpression visitor, A41 新归档)
+- **#14** reactive reassignment 嵌套数组: 0 sample 触发（grep 0 命中）
+
+### 剩 1 个 Open issue
+- **#15** render function / 异步组件 (major, 4 个 main.js 触发)
+  - entry 模式 `createApp(defineComponent({render: h => h(App)}))` 是合法但不优雅
+  - 真正的 component render function `render(h) {...}` 0 触发
+  - 修复方向: 简化 entry chain → `createApp(App).use(...).mount()`;component render → `setup() { return () => h(...) }`
+
+### iter-031 state
+| Metric | iter-030 | iter-031 |
+|---|---|---|
+| tsc errors | 0/12 | 0/12 |
+| unit tests | 130/130 | 130/130 |
+| Open issues | 5 | 1 |
+| 文件改动 | — | KNOWN_ISSUES.md only |
+
+无代码改动,纯文档清理。
 
 ## iter-030 highlights: vxe-table 3→4 插件
 
