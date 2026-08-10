@@ -157,6 +157,37 @@
 | B43 | vue2-compat: `new Vue({el: '#app'})` 简写模式没处理（el 选项应该移除并加 `.mount('#app')` chain）| iter-032 | vue2-compat |
 | B44 | vue3-entry: entry chain finder 只认 `.$mount(`,不认 `.mount(`（vue2-compat 修复后会输出 `.mount`）| iter-032 | vue3-entry |
 
+## iter-035 highlights: 真实项目深度排查 + 3 个 critical bug
+
+### 排查动机
+用户问"软件会不会加 lang=ts",自主排查后发现 26 个 .vue 文件(主要在 stress-compo + vue2-sample)用 TS 语法但没标 `lang="ts"`,会 parse 失败。
+
+### 修复 3 个 critical bug
+- **iter-035a** `packages/core/src/parser.ts`: JS 解析失败时 fallback 试 TS,成功标记 `file.metadata.lang = 'ts'`
+- **iter-035b** `packages/plugins/vue-router-v4/src/index.ts`: 加 `import VueRouter + new VueRouter` 检测(Vue 2 默认 import 形式)
+- **iter-035c** `vue-router-v4 Pass C`: 处理 `const x = () => new Router({...})` wrapper 模式,整个 VariableDeclarator 替换;rename id 为 `__routerInstance__` 避免跟 import `createRouter` / 后续 const `router` 冲突
+
+### 排查路径
+1. probe `examples/` 下所有 .vue 文件 → 发现 26 个 needs TS 命中
+2. 修 parser fallback → 26 个命中
+3. 跑 baseline aegis → 1 个 selfCheck 失败
+4. probe 找失败文件 → `src/router/index.js` 重复 `createRouter`
+5. debug Pass C → 找到 wrapper 模式 + parent 用 `path.parent` 是 node 不是 path 的 babel trap
+6. 修 Pass C wrapper rename → 0 errors
+
+### iter-035 闭环数字
+| 指标 | iter-034 | iter-035 |
+|---|---|---|
+| tsc errors | 0/12 | **0/12** ✓ |
+| unit tests | 130/130 | **130/130** ✓ |
+| 真实 parse errors (8 sample) | 1 (aegis) | **0** ✓ |
+| outputValid=true sample 数 | 6/8 | **8/8** ✓ |
+| review (8 sample total) | 546 | 546 |
+| compileOk / astEq / semDiff / rtSafe | 0.988/0.649/0.743/0.884 | 0.988/0.649/0.743/0.885 |
+| totalFiles | 232 | 232 |
+
+✅ 闭环:0 tsc errors / 0 parse errors / 130 tests pass / 8/8 sample clean / iter-035 推送 `a299570`。
+
 ## iter-034 highlights: #15b vuex modules 标 review
 
 ### 新增功能
