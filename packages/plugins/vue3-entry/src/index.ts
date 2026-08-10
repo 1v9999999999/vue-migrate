@@ -162,6 +162,52 @@ const plugin: TransformPlugin = {
       return
     }
 
+    // ----- 3.5 Detect `render: h => h(X)` shortcut (iter-033, issue #15) -----
+    // Vue 2 允许 `new Vue({render: h => h(App)})` 简写,Vue 3 等价物是 `createApp(App).use(...).mount()`。
+    // 自动改写风险大(router/store 需要从 options 抽到 .use() chain),所以只标 review 提示用户手动优化。
+    // 穿透:optionsObj 可能是 `defineComponent({...})` (vue2-compat 包了一层)
+    // optionsArg 是 `createApp(arg)`,需要穿透两层取 arg.arguments[0]
+    let renderCheckObj: t.ObjectExpression | null = entryChain.optionsObj
+    if (
+      !renderCheckObj &&
+      entryChain.optionsArg &&
+      t.isCallExpression(entryChain.optionsArg) &&
+      t.isIdentifier((entryChain.optionsArg as any).callee, { name: 'createApp' }) &&
+      (entryChain.optionsArg as any).arguments[0] &&
+      t.isCallExpression((entryChain.optionsArg as any).arguments[0]) &&
+      t.isIdentifier(((entryChain.optionsArg as any).arguments[0]).callee, { name: 'defineComponent' })
+    ) {
+      const defArg = (entryChain.optionsArg as any).arguments[0].arguments[0]
+      if (t.isObjectExpression(defArg)) renderCheckObj = defArg
+    }
+    if (renderCheckObj) {
+      console.log(`[vue3-entry DEBUG] renderCheckObj found, ${renderCheckObj.properties.length} props`)
+      const renderProp = renderCheckObj.properties.find(
+        (p: any) =>
+          t.isObjectProperty(p) && t.isIdentifier(p.key, { name: 'render' }),
+      )
+      if (renderProp && t.isObjectProperty(renderProp) && t.isArrowFunctionExpression(renderProp.value)) {
+        // detect `h => h(X)` form
+        const fn = renderProp.value
+        if (
+          fn.params.length === 1 &&
+          t.isIdentifier(fn.params[0]) &&
+          t.isCallExpression(fn.body) &&
+          t.isIdentifier(fn.body.callee) &&
+          fn.body.callee.name === fn.params[0].name && // h(...)
+          fn.body.arguments.length === 1 &&
+          t.isIdentifier(fn.body.arguments[0])
+        ) {
+          const componentName = (fn.body.arguments[0] as t.Identifier).name
+          utils.manualReview(
+            `[#15 render shortcut] 检测到 render: h => h(${componentName})。可手动简化为: ` +
+              `createApp(${componentName}).use(router).use(store).mount('#app')` +
+              `(把原 options 里的 router/store 抽到 .use() chain,移除 render)。当前 Vue 3 写法 (createApp(defineComponent({...})).mount) 也合法,但不优雅。`,
+          )
+        }
+      }
+    }
+
     // ----- 4. Collect chain items BEFORE we mutate anything (to preserve source order) -----
     // We'll collect:
     //   - chainItems: Vue.x(args) statements to convert into chained app.x(args) calls

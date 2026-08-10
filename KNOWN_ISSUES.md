@@ -4,15 +4,19 @@
 
 ## Open
 
-### 15. render function / 异步组件
+### 15. render function / 异步组件 (partial: 标 review 提示)
 
 - **Type**: not implemented
-- **Severity**: major
-- **Files**: `examples/vue2-aegis/src/main.js`, `examples/vue2-element-touzi-admin-dev-permission/src/main.js`, `examples/vue2-sample/src/main.js` (4 个 entry 文件)
-- **现状**: 转换后是 `createApp(defineComponent({ render: h => h(App), router, store }))` — Vue3 合法但不优雅;真正的组件 render 函数 (`render(h) {...}`) 也没转换
-- **影响**: `outputValid=false` (vue2-aegis),`errors=4` (vue2-element-touzi-admin-dev-permission)
-- **修复计划**: 简化 entry 模式 → `createApp(App).use(...).mount()`;组件 render 函数 → `setup() { return () => h(...) }`
-- **注**: 4 个 main.js 触发,实际影响是 entry 渲染 chain 没被简化(component-level render function 在 sample 里 0 触发)
+- **Severity**: minor (现在降级为 minor, 已部分覆盖)
+- **Files**: `examples/vue2-aegis/src/main.js`, `examples/vue2-element-touzi-admin-dev-permission/src/main.js`, `examples/vue2-sample/src/main.js`, `examples/ve-admin-test/src/main.js` (4 个 entry 文件)
+- **现状 (iter-033)**: 转换后是 `createApp(defineComponent({ render: h => h(App), router, store })).mount('#app')` — Vue3 合法。**新加 manualReview 提示用户可手动简化**:
+  ```
+  [#15 render shortcut] 检测到 render: h => h(App).可手动简化为: 
+  createApp(App).use(router).use(store).mount('#app')
+  (把原 options 里的 router/store 抽到 .use() chain,移除 render)。
+  ```
+- **修复策略**: 只标 review,不自动改(自动改风险大:router/store 要从 options 抽到 .use() chain,需要 AST 重写)
+- **剩余**: 真正的组件 render 函数 (`render(h) {...}` 完整方法) 0 触发,无需处理
 
 ### 11. ~~`expandThisDollarWatch` 不支持非字符串 key~~ ✅ 0 触发(iter-031)
 
@@ -152,6 +156,30 @@
 | B42 | vue2-compat: `new Vue({...}).$mount('#app')` 转 `createApp(...).mount(...)` 条件错（`isCallExpression(parent.object)` 应该是 `isNewExpression`），导致 `.mount()` 永远丢失 | iter-032 | vue2-compat |
 | B43 | vue2-compat: `new Vue({el: '#app'})` 简写模式没处理（el 选项应该移除并加 `.mount('#app')` chain）| iter-032 | vue2-compat |
 | B44 | vue3-entry: entry chain finder 只认 `.$mount(`,不认 `.mount(`（vue2-compat 修复后会输出 `.mount`）| iter-032 | vue3-entry |
+
+## iter-033 highlights: #15 render shortcut 标 review
+
+### 新增功能
+- **vue3-entry** 在 entry chain finder 之后,新增 `render: h => h(X)` 检测
+- 4 个 main.js (vue2-aegis / permission / vue2-sample / ve-admin-test) 命中
+- 输出 review 提示用户手动简化:`createApp(App).use(router).use(store).mount('#app')`
+- 实际效果:baseline totalReviewDelta 540 → 544 (+4),其余数字一致
+
+### 技术细节
+- entry chain finder 找到 `createApp(defineComponent({...})).mount('#app')` 时,`optionsArg` 是 `createApp(arg)` 整体(不是 `arg`)
+- 需要穿透两层:`optionsArg.arguments[0].arguments[0]` 才是真正的 options object
+- 检测 `h => h(X)` 三要素:arrow function + 1 个 h 参数 + body 是 `h(X)` CallExpression
+
+### iter-033 state
+| Metric | iter-032 | iter-033 |
+|---|---|---|
+| tsc errors | 0/12 | 0/12 |
+| unit tests | 130/130 | 130/130 |
+| totalReviewDelta | 539 | **544** (+4 render shortcuts) |
+| compileOk | 0.988 | 0.988 |
+| astEquivalent | 0.649 | 0.649 |
+| semanticDiff | 0.743 | 0.743 |
+| runtimeSafe | 0.884 | 0.884 |
 
 ## iter-032 highlights: 拉 PanJiaChen/vue-element-admin (87k star, 131 .vue) 找 bug
 
