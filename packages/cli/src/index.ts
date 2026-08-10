@@ -37,6 +37,7 @@ program
   .option('--backup', 'Backup original files to .vue-migrate-backup/', false)
   .option('-p, --plugins <names...>', 'Specify which plugins to run (default: all)')
   .option('--only-changed', 'Only write files that were changed by plugins (skip unchanged files). Default: copy full directory structure to output dir.', false)
+  .option('--ts', 'Enable TS fallback: when a <script> block has no lang="ts" but fails JS parse, try TS parse. Default: off (strict lang parsing).', false)
   .action(async (src: string, opts: any) => {
     await runPipeline({
       root: src,
@@ -45,6 +46,7 @@ program
       backup: opts.backup,
       plugins: opts.plugins,
       keepStructure: !opts.onlyChanged,  // --only-changed 时不保留
+      fallbackToTs: !!opts.ts,  // iter-037: 默认 false, 加 --ts 才启用
     })
   })
 

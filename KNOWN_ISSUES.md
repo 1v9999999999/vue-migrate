@@ -432,3 +432,30 @@
 | totalFiles | 171 | 232 | 232 |
 
 ⚠️ iter-027's "perfect" metrics were misleading: vue3-entry was failing to load due to missing `@babel/generator`, so its 486 review notes weren't being generated. With the fix (B27), the tool now produces correct output but the metric changes reflect the truth that vue3-entry is making more changes (some different from official tool).
+
+## iter-037: TS fallback 改为 opt-in（默认不开）
+
+**变更**：
+- MigrationConfig / OrchestratorOptions 新增 allbackToTs?: boolean（默认 alse）
+- parseFile(file, fallbackToTs) / parseProject(ctx) 读取 ctx.config.fallbackToTs
+- CLI 	ransform 命令新增 --ts flag
+
+**使用**：
+`ash
+# 默认：严格按 lang 解析（之前未加 lang="ts" 的 .vue 走 JS 解析，TS 语法会失败）
+vue-migrate transform <src>
+
+# 加 --ts：JS 解析失败时 fallback 试 TS（iter-035 的行为）
+vue-migrate transform <src> --ts
+`
+
+**背景**：
+- iter-035 默认开启 TS fallback，发现 26 个 .vue 文件用了 TS 语法但没加 lang="ts"
+- 但默认开启会"静默修改解析路径"，可能让用户感到迷惑（"我明明写的是 JS，怎么就按 TS 解析了？"）
+- 改为 opt-in：用户明确知道文件是 TS 时加 --ts，更可控
+
+**影响**：
+- 0 回归：130/130 测试通过、12/12 包 tsc 0 错
+- 行为差异：默认模式（无 --ts）= 严格 lang 解析，TS 语法文件会 parse fail（用户必须加 lang="ts" 或 --ts）
+- 旧 baseline 行为不变：所有 8 sample 走 default 模式，0 parse error
+

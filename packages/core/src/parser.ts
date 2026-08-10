@@ -20,7 +20,7 @@ const BABEL_OPTIONS_BASE = {
 }
 
 /** 解析单个文件的 script */
-export function parseFile(file: FileNode): void {
+export function parseFile(file: FileNode, fallbackToTs = false): void {
   // Vue 文件：解析 script 块
   if (file.kind === 'vue') {
     const scriptBlock = file.sfc?.script
@@ -29,22 +29,22 @@ export function parseFile(file: FileNode): void {
       // 1) 先按用户标记的 lang 解析
       try {
         file.scriptAst = parseScript(code, isTypeScript(file))
-        console.log(`[parser-DEBUG] ${file.relativePath} parsed as ${file.metadata.lang || (isTypeScript(file) ? 'ts' : 'js')}`)
         return
       } catch (e1) {
-        // 2) iter-035 fallback: 如果是 .vue 且默认 lang=js,试 TS (可能用户没标 lang="ts" 但实际是 TS)
+        // 2) iter-037 fallback: 只在 --ts 开启时 + 是 .vue + 默认 lang=js 时试 TS
+        //   iter-035 时默认开启, 误报 + 0 用户明确要 TS fallback
+        //   iter-037 改为 opt-in, 默认 false, 用户需明确加 --ts
         if (
+          fallbackToTs &&
           !isTypeScript(file) &&
           (file.metadata.lang === 'js' || !file.metadata.lang)
         ) {
           try {
             file.scriptAst = parseScript(code, true)
-            // 标记 file 为 TS (后续 codegen / 生成 import 等会用)
             file.metadata.lang = 'ts'
-            console.log(`[parser-DEBUG] ${file.relativePath} FALLBACK to TS`)
             return
-          } catch (e2: any) {
-            console.log(`[parser-DEBUG] ${file.relativePath} BOTH FAIL: ${(e2 as any).message?.slice(0, 100)}`)
+          } catch {
+            // 也不是 TS, fall through 抛原错
           }
         }
         throw e1
@@ -76,9 +76,10 @@ function isTypeScript(file: FileNode): boolean {
 
 /** 入口 */
 export async function parseProject(ctx: ProjectContext): Promise<void> {
+  const fallbackToTs = ctx.config?.fallbackToTs ?? false  // iter-037
   for (const file of ctx.files.values()) {
     try {
-      parseFile(file)
+      parseFile(file, fallbackToTs)
     } catch (e: any) {
       file.transforms.push({
         plugin: 'core/parser',

@@ -127,6 +127,13 @@ export interface MigrationConfig {
   outDir?: string
   /** 是否保留完整目录结构（未改的文件从 src 拷贝到 dst） */
   keepStructure?: boolean
+  /**
+   * iter-037: JS 解析失败时是否 fallback 试 TS 解析
+   *   - false (默认): 严格按文件扩展名 / `<script lang>` 解析, TS 语法会报错
+   *   - true: 遇到 .vue 解析失败时试 TS, 成功就当 TS 处理
+   * 用法: vue-migrate transform --ts <src>
+   */
+  fallbackToTs?: boolean
 }
 
 /** 单个文件处理时的上下文 */

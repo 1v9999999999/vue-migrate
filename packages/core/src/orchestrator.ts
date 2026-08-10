@@ -37,6 +37,8 @@ export interface OrchestratorOptions {
    *   - false：只写改过的文件（适合增量场景）
    */
   keepStructure?: boolean
+  /** iter-037: JS 解析失败时 fallback 试 TS, 默认 false */
+  fallbackToTs?: boolean
 }
 
 export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectContext> {
@@ -59,6 +61,7 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
       backup: opts.backup,
       outDir: opts.outDir,
       keepStructure: opts.keepStructure ?? true,  // 默认 true
+      fallbackToTs: opts.fallbackToTs ?? false,  // iter-037: 默认不转 TS
     },
   }
 
