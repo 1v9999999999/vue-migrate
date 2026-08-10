@@ -157,6 +157,31 @@
 | B43 | vue2-compat: `new Vue({el: '#app'})` 简写模式没处理（el 选项应该移除并加 `.mount('#app')` chain）| iter-032 | vue2-compat |
 | B44 | vue3-entry: entry chain finder 只认 `.$mount(`,不认 `.mount(`（vue2-compat 修复后会输出 `.mount`）| iter-032 | vue3-entry |
 
+## iter-034 highlights: #15b vuex modules 标 review
+
+### 新增功能
+- **vuex-pinia** 检测 `new Vuex.Store({modules, getters})` modules 模式
+- 命中时:**把 vuexStoreCall 置 null** 跳过整个自动转换(if 块剩余部分会误把 modules 当 state 解析)
+- reviewItems push 一条 manualReview 提示用户:
+  ```
+  [#15b vuex modules] 检测到 new Vuex.Store({modules: {app, user, settings, tags, permission, ...}, getters}) — modules 模式。
+  Pinia 没有 modules 概念,需手动迁移: 每个 module 改成 export const useXxxStore = defineStore('xxx', {state, getters, actions})。
+  原 getters/mutations 合并到对应 store。Vue 组件里的 this.$store.state.xxx 改成 store.xxx, dispatch 改成 store.action()。
+  ```
+
+### iter-034 state
+| Metric | iter-033 | iter-034 |
+|---|---|---|
+| tsc errors | 0/12 | 0/12 |
+| unit tests | 130/130 | 130/130 |
+| totalReviewDelta | 544 | **546** (+2 modules reviews) |
+| compileOk | 0.988 | 0.988 |
+| astEquivalent | 0.649 | 0.649 |
+| semanticDiff | 0.743 | 0.743 |
+| runtimeSafe | 0.884 | 0.884 |
+
+✅ 0 回归。ve-admin-test store/index.js 完整保留(不被错误转换)。
+
 ## iter-033 highlights: #15 render shortcut 标 review
 
 ### 新增功能

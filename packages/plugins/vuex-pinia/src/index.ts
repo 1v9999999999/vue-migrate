@@ -94,8 +94,37 @@ let stateSource: string | null = null
       },
     })
 
+    let hasModules = false  // iter-034 #15b: modules 模式标志
+
     if (vuexStoreCall) {
       const options = vuexStoreCall.arguments[0] as t.ObjectExpression
+
+      // iter-034 #15b: 检测 modules 模式 — `new Vuex.Store({modules, getters})`
+      // 复杂转换需要逐个模块生成 defineStore,自动改风险大,先标 review
+      const modulesProp = options.properties.find(
+        (p: any) => t.isObjectProperty(p) && t.isIdentifier(p.key, { name: 'modules' }),
+      )
+      const hasInlineState = options.properties.some(
+        (p: any) => t.isObjectProperty(p) && t.isIdentifier(p.key, { name: 'state' }),
+      )
+      if (modulesProp && !hasInlineState) {
+        // 收集 module 名字
+        const modNode = (modulesProp as any).value
+        const moduleNames: string[] = []
+        if (t.isObjectExpression(modNode)) {
+          for (const p of modNode.properties) {
+            if (t.isObjectProperty(p) && t.isIdentifier(p.key)) {
+              moduleNames.push((p.key as t.Identifier).name)
+            }
+          }
+        }
+        reviewItems.push(
+          `[#15b vuex modules] 检测到 new Vuex.Store({modules: {${moduleNames.join(', ')}, ...}, getters}) — modules 模式。Pinia 没有 modules 概念,需手动迁移: 每个 module (${moduleNames.join(', ')}) 改成 export const useXxxStore = defineStore('xxx', {state, getters, actions})。原 getters/mutations 合并到对应 store 的 getters/actions。Vue 组件里的 this.$store.state.xxx 改成 store.xxx, dispatch 改成 store.action()。`,
+        )
+        // iter-034 #15b: 把 vuexStoreCall 置 null 跳过整个 if 块剩余部分(自动转换会误把 modules 当 state)
+        vuexStoreCall = null
+        hasModules = true
+      }
 
       // 从 options 提取 inline state/getters/mutations/actions
       // 优先用 inline 形式，否则用上面的
