@@ -63,6 +63,8 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
       keepStructure: opts.keepStructure ?? true,  // 默认 true
       fallbackToTs: opts.fallbackToTs ?? false,  // iter-037: 默认不转 TS
     },
+    // P0-B: 跨插件共享的 store 命名 (vuex-pinia 写、composition 读)
+    storeNames: {},
   }
 
   console.log(chalk.gray(`\n[1/6] 扫描文件: ${ctx.root}`))

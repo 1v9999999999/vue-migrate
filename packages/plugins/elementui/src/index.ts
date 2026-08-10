@@ -88,6 +88,14 @@ const plugin: TransformPlugin = {
 
       // auto-add imports
       ensureElementPlusImports(ctx, usedApis)
+
+      // iter-038-fix: We just mutated file.scriptAst (added ElMessage /
+      // ElNotification imports). Composition (priority 0) runs AFTER us
+      // (priority 25) and uses raw-source path that ignores scriptAst —
+      // so without this sync, our new imports would be lost.
+      // syncScriptAstToSource() re-generates the script block from the AST
+      // and writes it back to file.source so composition picks it up.
+      ctx.utils.syncScriptAstToSource()
     }
 
     // ========== 2. Template: tag rename / .sync / size ==========

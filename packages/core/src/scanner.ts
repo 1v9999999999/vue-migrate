@@ -84,6 +84,15 @@ export async function scanProject(ctx: ProjectContext): Promise<void> {
     const kind = detectKind(absPath)
     const rel = relative(ctx.root, absPath).replace(/\\/g, '/')
 
+    // iter-038-fix: Only files DIRECTLY in the project root (or `src/`) are
+    // considered entry points. Nested `index.js` files (e.g. `store/index.js`,
+    // `router/index.js`) are modules, not entry — they're imported by main.js.
+    // Before this fix, every `index.js` anywhere in the tree was flagged
+    // as an entry, causing vue3-entry plugin to spam
+    // "Vue2 entry file 未找到 new Vue(...)" reviews on store/router.
+    const isRootEntry = ENTRY_PATTERNS.some((p) => p.test(basename(absPath))) &&
+      (rel === basename(rel) || /^(src|app)\//.test(rel))
+
     const fileNode: FileNode = {
       path: absPath,
       relativePath: rel,
@@ -92,7 +101,7 @@ export async function scanProject(ctx: ProjectContext): Promise<void> {
       metadata: {
         features: [],
         dependencies: extractDependencies(source),
-        isEntry: ENTRY_PATTERNS.some((p) => p.test(basename(absPath))),
+        isEntry: isRootEntry,
       },
       transforms: [],
       changed: false,

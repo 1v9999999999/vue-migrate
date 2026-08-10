@@ -7,34 +7,32 @@
                 style="width: 100%">
                 <el-table-column type="expand">
                   <template #default="props">
-                      <template>
-                        <el-form label-position="left" inline class="demo-table-expand">
-                          <el-form-item label="店铺名称">
-                            <span>{{ props.row.name }}</span>
-                          </el-form-item>
-                          <el-form-item label="店铺地址">
-                            <span>{{ props.row.address }}</span>
-                          </el-form-item>
-                          <el-form-item label="店铺介绍">
-                            <span>{{ props.row.description }}</span>
-                          </el-form-item>
-                          <el-form-item label="店铺 ID">
-                            <span>{{ props.row.id }}</span>
-                          </el-form-item>
-                          <el-form-item label="联系电话">
-                            <span>{{ props.row.phone }}</span>
-                          </el-form-item>
-                          <el-form-item label="评分">
-                            <span>{{ props.row.rating }}</span>
-                          </el-form-item>
-                          <el-form-item label="销售量">
-                            <span>{{ props.row.recent_order_num }}</span>
-                          </el-form-item>
-                          <el-form-item label="分类">
-                            <span>{{ props.row.category }}</span>
-                          </el-form-item>
-                        </el-form>
-                      </template>
+                    <el-form label-position="left" inline class="demo-table-expand">
+                      <el-form-item label="店铺名称">
+                        <span>{{ props.row.name }}</span>
+                      </el-form-item>
+                      <el-form-item label="店铺地址">
+                        <span>{{ props.row.address }}</span>
+                      </el-form-item>
+                      <el-form-item label="店铺介绍">
+                        <span>{{ props.row.description }}</span>
+                      </el-form-item>
+                      <el-form-item label="店铺 ID">
+                        <span>{{ props.row.id }}</span>
+                      </el-form-item>
+                      <el-form-item label="联系电话">
+                        <span>{{ props.row.phone }}</span>
+                      </el-form-item>
+                      <el-form-item label="评分">
+                        <span>{{ props.row.rating }}</span>
+                      </el-form-item>
+                      <el-form-item label="销售量">
+                        <span>{{ props.row.recent_order_num }}</span>
+                      </el-form-item>
+                      <el-form-item label="分类">
+                        <span>{{ props.row.category }}</span>
+                      </el-form-item>
+                    </el-form>
                   </template>
                 </el-table-column>
                 <el-table-column
@@ -51,19 +49,17 @@
                 </el-table-column>
                 <el-table-column label="操作" width="200">
                   <template #default="scope">
-                      <template>
-                        <el-button
-                          size="small"
-                          @click="handleEdit(scope.$index, scope.row)">编辑</el-button>
-                        <el-button
-                          size="small"
-                          type="Success"
-                          @click="addFood(scope.$index, scope.row)">添加食品</el-button>
-                        <el-button
-                          size="small"
-                          type="danger"
-                          @click="handleDelete(scope.$index, scope.row)">删除</el-button>
-                      </template>
+                    <el-button
+                      size="small"
+                      @click="handleEdit(scope.$index, scope.row)">编辑</el-button>
+                    <el-button
+                      size="small"
+                      type="Success"
+                      @click="addFood(scope.$index, scope.row)">添加食品</el-button>
+                    <el-button
+                      size="small"
+                      type="danger"
+                      @click="handleDelete(scope.$index, scope.row)">删除</el-button>
                   </template>
                 </el-table-column>
             </el-table>
@@ -118,7 +114,7 @@
                     </el-form-item>
                 </el-form>
               <template #footer>
-                  <div slot="footer" class="dialog-footer">
+                  <div class="dialog-footer">
                     <el-button @click="dialogFormVisible = false">取 消</el-button>
                     <el-button type="primary" @click="updateShop">确 定</el-button>
                   </div>
@@ -129,204 +125,220 @@
 </template>
 
 <script setup>
-import headTop from '../components/headTop'
-    import {baseUrl, baseImgPath} from '@/config/env'
-    import {cityGuess, getResturants, getResturantsCount, foodCategory, updateResturant, searchplace, deleteResturant} from '@/api/getData'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import headTop from '../components/headTop';
 
-import { reactive, ref } from 'vue'
+import { baseUrl, baseImgPath } from '@/config/env';
 
-const city = reactive<object>({})
-const offset = ref<number>(0)
-const limit = ref<number>(20)
-const count = ref<number>(0)
-const tableData = ref<unknown[]>([])
-const currentPage = ref<number>(1)
-const selectTable = reactive<object>({})
-const dialogFormVisible = ref<boolean>(false)
-const categoryOptions = ref<unknown[]>([])
-const selectedCategory = ref<unknown[]>([])
-const address = reactive<object>({})
+import { cityGuess, getResturants, getResturantsCount, foodCategory, updateResturant, searchplace, deleteResturant } from '@/api/getData';
+
+import { ElMessage } from "element-plus";
+
+import { useRouter } from 'vue-router';
+
+
+import { reactive, ref } from 'vue';
+
+
+const baseUrlData = ref(baseUrl)
+const baseImgPathData = ref(baseImgPath)
+const city = reactive({})
+const offset = ref(0)
+const limit = ref(20)
+const count = ref(0)
+const tableData = reactive([])
+const currentPage = ref(1)
+const selectTable = reactive({})
+const dialogFormVisible = ref(false)
+const categoryOptions = reactive([])
+const selectedCategory = reactive([])
+const address = reactive({})
 
 const router = useRouter()
-
+// --- created() inline ---
+  initData();
+  console.log(11111);
 async function initData() {
-  try{
-      Object.assign(city, await cityGuess());
-      const countData = await getResturantsCount();
-      if (countData.status == 1) {
-          count.value = countData.count;
-      }else{
-          throw new Error('获取数据失败');
-      }
-      getResturants();
-  }catch(err){
-      console.log('获取数据失败', err);
+    try {
+    Object.assign(city, await cityGuess());
+    const countData = await getResturantsCount();
+    if (countData.status == 1) {
+      count.value = countData.count;
+    } else {
+      throw new Error('获取数据失败');
+    }
+    getResturants();
+  } catch (err) {
+    console.log('获取数据失败', err);
   }
 }
-
 async function getCategory() {
-  try{
-      const categories = await foodCategory();
-      categories.forEach(item => {
-          if (item.sub_categories.length) {
-              const addnew = {
-                  value: item.name,
-                  label: item.name,
-                  children: []
-              }
-              item.sub_categories.forEach((subitem, index) => {
-                  if (index == 0) {
-                      return
-                  }
-                  addnew.children.push({
-                      value: subitem.name,
-                      label: subitem.name,
-                  })
-              })
-              categoryOptions.value.push(addnew)
+    try {
+    const categories = await foodCategory();
+    categories.forEach(item => {
+      if (item.sub_categories.length) {
+        const addnew = {
+          value: item.name,
+          label: item.name,
+          children: []
+        };
+        item.sub_categories.forEach((subitem, index) => {
+          if (index == 0) {
+            return;
           }
-      })
-  }catch(err){
-      console.log('获取商铺种类失败', err);
+          addnew.children.push({
+            value: subitem.name,
+            label: subitem.name
+          });
+        });
+        categoryOptions.push(addnew);
+      }
+    });
+  } catch (err) {
+    console.log('获取商铺种类失败', err);
   }
 }
-
-async function getResturants() {
-  const {latitude, longitude} = city;
-  const restaurants = await getResturants({latitude, longitude, offset: offset.value, limit: limit.value});
-  tableData.value = [];
+async function __getResturants() {
+    const {
+    latitude,
+    longitude
+  } = city;
+  const restaurants = await getResturants({
+    latitude,
+    longitude,
+    offset: offset.value,
+    limit: limit.value
+  });
+  tableData.splice(0, tableData.length, ...[]);
   restaurants.forEach(item => {
-      const tableDataLocal = {};
-      tableDataLocal.name = item.name;
-      tableDataLocal.address = item.address;
-      tableDataLocal.description = item.description;
-      tableDataLocal.id = item.id;
-      tableDataLocal.phone = item.phone;
-      tableDataLocal.rating = item.rating;
-      tableDataLocal.recent_order_num = item.recent_order_num;
-      tableDataLocal.category = item.category;
-      tableDataLocal.image_path = item.image_path;
-      tableData.value.push(tableDataLocal);
-  })
+    const tableData = {};
+    tableData.name = item.name;
+    tableData.address = item.address;
+    tableData.description = item.description;
+    tableData.id = item.id;
+    tableData.phone = item.phone;
+    tableData.rating = item.rating;
+    tableData.recent_order_num = item.recent_order_num;
+    tableData.category = item.category;
+    tableData.image_path = item.image_path;
+    tableData.push(tableData);
+  });
 }
-
 function handleSizeChange(val) {
-  console.log(`每页 ${val} 条`);
+    console.log(`每页 ${val} 条`);
 }
-
 function handleCurrentChange(val) {
-  currentPage.value = val;
-  offset.value = (val - 1)*limit.value;
-  getResturants()
+    currentPage.value = val;
+  offset.value = (val - 1) * limit.value;
+  getResturants();
 }
-
 function handleEdit(index, row) {
-  Object.assign(selectTable, row);
+    Object.assign(selectTable, row);
   address.address = row.address;
   dialogFormVisible.value = true;
-  selectedCategory.value = row.category.split('/');
-  if (!categoryOptions.value.length) {
-      getCategory();
+  selectedCategory.splice(0, selectedCategory.length, ...row.category.split('/'));
+  if (!categoryOptions.length) {
+    getCategory();
   }
 }
-
 function addFood(index, row) {
-  router.push({ path: 'addGoods', query: { restaurant_id: row.id }})
+    router.push({
+    path: 'addGoods',
+    query: {
+      restaurant_id: row.id
+    }
+  });
 }
-
 async function handleDelete(index, row) {
-  try{
-      const res = await deleteResturant(row.id);
-      if (res.status == 1) {
-          ElMessage({
-              type: 'success',
-              message: '删除店铺成功'
-          });
-          tableData.value.splice(index, 1);
-      }else{
-          throw new Error(res.message)
-      }
-  }catch(err){
+    try {
+    const res = await deleteResturant(row.id);
+    if (res.status == 1) {
       ElMessage({
-          type: 'error',
-          message: err.message
+        type: 'success',
+        message: '删除店铺成功'
       });
-      console.log('删除店铺失败')
+      tableData.splice(index, 1);
+    } else {
+      throw new Error(res.message);
+    }
+  } catch (err) {
+    ElMessage({
+      type: 'error',
+      message: err.message
+    });
+    console.log('删除店铺失败');
   }
 }
-
 async function querySearchAsync(queryString, cb) {
-  if (queryString) {
-      try{
-          const cityList = await searchplace(city.id, queryString);
-          if (cityList instanceof Array) {
-              cityList.map(item => {
-                  item.value = item.address;
-                  return item;
-              })
-              cb(cityList)
-          }
-      }catch(err){
-          console.log(err)
+    if (queryString) {
+    try {
+      const cityList = await searchplace(city.id, queryString);
+      if (cityList instanceof Array) {
+        cityList.map(item => {
+          item.value = item.address;
+          return item;
+        });
+        cb(cityList);
       }
+    } catch (err) {
+      console.log(err);
+    }
   }
 }
-
 function addressSelect(vale) {
-  const {address, latitude, longitude} = vale;
-  Object.assign(address, {address, latitude, longitude});
+    const {
+    address,
+    latitude,
+    longitude
+  } = vale;
+  Object.assign(address, {
+    address,
+    latitude,
+    longitude
+  });
 }
-
 function handleServiceAvatarScucess(res, file) {
-  if (res.status == 1) {
-      selectTable.image_path = res.image_path;
-  }else{
-      ElMessage.error('上传图片失败！');
+    if (res.status == 1) {
+    selectTable.image_path = res.image_path;
+  } else {
+    ElMessage.error('上传图片失败！');
   }
 }
-
 function beforeAvatarUpload(file) {
-                  const isRightType = (file.type === 'image/jpeg') || (file.type === 'image/png');
-                  const isLt2M = file.size / 1024 / 1024 < 2;
-
-                  if (!isRightType) {
-                      ElMessage.error('上传头像图片只能是 JPG 格式!');
-                  }
-                  if (!isLt2M) {
-                      ElMessage.error('上传头像图片大小不能超过 2MB!');
-                  }
-                  return isRightType && isLt2M;
+    const isRightType = file.type === 'image/jpeg' || file.type === 'image/png';
+  const isLt2M = file.size / 1024 / 1024 < 2;
+  if (!isRightType) {
+    ElMessage.error('上传头像图片只能是 JPG 格式!');
+  }
+  if (!isLt2M) {
+    ElMessage.error('上传头像图片大小不能超过 2MB!');
+  }
+  return isRightType && isLt2M;
 }
-
 async function updateShop() {
-  dialogFormVisible.value = false;
-  try{
-      Object.assign(selectTable, address);
-      selectTable.category = selectedCategory.value.join('/');
-      const res = await updateResturant(selectTable)
-      if (res.status == 1) {
-          ElMessage({
-              type: 'success',
-              message: '更新店铺信息成功'
-          });
-          getResturants();
-      }else{
-          ElMessage({
-              type: 'error',
-              message: res.message
-          });
-      }
-  }catch(err){
-      console.log('更新餐馆信息失败', err);
+    dialogFormVisible.value = false;
+  try {
+    Object.assign(selectTable, address);
+    selectTable.category = selectedCategory.join('/');
+    const res = await updateResturant(selectTable);
+    if (res.status == 1) {
+      ElMessage({
+        type: 'success',
+        message: '更新店铺信息成功'
+      });
+      getResturants();
+    } else {
+      ElMessage({
+        type: 'error',
+        message: res.message
+      });
+    }
+  } catch (err) {
+    console.log('更新餐馆信息失败', err);
   }
 }
 
-// --- created() inline ---
-initData();
-console.log(11111)
 
+;
 </script>
 
 <style lang="less">

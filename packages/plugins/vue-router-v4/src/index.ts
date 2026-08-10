@@ -62,6 +62,61 @@ const plugin: TransformPlugin = {
     let needsCreateWebHashHistory = false
     let needsCreateWebHistory = false
 
+    // ─── Pass 0: 清理 Vue.use(Router) / Vue.use(VueRouter) ───
+    // vue-router 4 不再走 Vue.use(plugin) 安装。Vue 2 的 router/index.js 几乎一定有
+    // 一行 `Vue.use(Router)` 用来挂载全局 Router；如果留着不处理，Pass B/D 会把
+    // `import Router from 'vue-router'` 删掉，剩下 `Vue.use(Router)` 就成了
+    // 对未 import 变量 Router 的引用，模块加载直接 ReferenceError。
+    //
+    // 必须放在所有改 import 的 pass 之前, 这样还能用 path.scope.getBinding(name)
+    // 准确判断 Router / VueRouter 在文件里是否真的被 import 过。
+    //
+    // 处理策略:
+    //   - 参数是 Router/VueRouter 且已绑定(import 进来) → 删整行 (安全)
+    //   - 参数是 Router/VueRouter 但未绑定 (typo / 别名引用) → 标 review, 不删
+    //   - 参数是其他 name 且未绑定 → 标 review, 不删 (用户可能用了其他东西)
+    //   - 参数是其他 name 且已绑定 → 不动 (是自定义插件, 不在 vue-router-v4 职责内)
+    traverse(ctx.file.scriptAst, {
+      ExpressionStatement(path: any) {
+        const expr = path.node.expression
+        if (!t.isCallExpression(expr)) return
+        const callee = expr.callee
+        if (
+          !t.isMemberExpression(callee) ||
+          callee.computed ||
+          !t.isIdentifier(callee.object, { name: 'Vue' }) ||
+          !t.isIdentifier(callee.property, { name: 'use' })
+        ) {
+          return
+        }
+        if (expr.arguments.length < 1) return
+        const arg = expr.arguments[0]
+        if (!t.isIdentifier(arg)) return
+
+        const name = arg.name
+        const binding = path.scope.getBinding(name)
+        const isKnownRouterName = name === 'Router' || name === 'VueRouter'
+
+        if (isKnownRouterName && binding) {
+          // 已知是 vue-router 2/3 的 install 调用, 变量也确实在 scope 内 → 安全删
+          path.remove()
+          changed = true
+          return
+        }
+
+        if (!binding) {
+          // 未绑定的引用 — 不删整行 (用户可能用了其他东西), 标 review 让用户确认
+          const hint = isKnownRouterName
+            ? `vue-router 4 不再需要 Vue.use(plugin) 安装，请手动删除该行。`
+            : `如果这是自定义插件，请改为对应的 createApp.use() 链；否则请手动删除该行。`
+          reviewItems.push(
+            `检测到 \`Vue.use(${name})\` 引用了未 import/未声明的变量 \`${name}\`。${hint}`,
+          )
+        }
+        // 其他情况 (自定义 name 且已绑定) → 不动, 不是 vue-router-v4 关心的事
+      },
+    })
+
     // ─── Pass A: 处理 require.ensure → () => import() ───
     traverse(ctx.file.scriptAst, {
       CallExpression(path: any) {
@@ -161,8 +216,8 @@ const specifiers = node.specifiers
           // 重置 specifiers 为空，由后续按需添加
           path.node.specifiers = []
           needsCreateRouter = true
-          needsCreateWebHashHistory = true
-          needsCreateWebHistory = true
+          // P1-3: needsCreateWebHashHistory / needsCreateWebHistory 在 Pass C 里
+          //   根据实际 mode 精确设置 — 不在这里一刀切,避免 import 未使用的 factory
           changed = true
         }
       },
@@ -182,6 +237,9 @@ const specifiers = node.specifiers
         // 提取 mode（默认 'hash'，除非显式 'abstract'）
         let mode: 'hash' | 'history' | 'abstract' = 'hash'
         let hasMode = false
+        // P1-3: Vue Router 4 移除了 `strict` 配置项（默认行为已等价于 strict: true）。
+        //   检出后丢弃，并 review 通知用户。
+        let hasStrict = false
         const keptProps: t.ObjectProperty[] = []
         for (const prop of options.properties) {
           if (!t.isObjectProperty(prop) && !t.isObjectMethod(prop)) {
@@ -200,6 +258,11 @@ const specifiers = node.specifiers
             // 不保留 mode（vue-router 4 用 history factory）
             continue
           }
+          // P1-3: 丢弃 `strict` 属性（Vue Router 4 已移除该选项）
+          if (t.isIdentifier(key) && key.name === 'strict') {
+            hasStrict = true
+            continue
+          }
           keptProps.push(prop as any)
         }
 
@@ -211,6 +274,14 @@ const historyCall =
 
         const historyProp = t.objectProperty(t.identifier('history'), historyCall)
         keptProps.unshift(historyProp)
+
+        // P1-3: 只 import 实际使用的 history factory（精确匹配，避免未用 import）
+        if (mode === 'history') {
+          needsCreateWebHistory = true
+        } else {
+          // 'hash' | 'abstract' 都用 createWebHashHistory（abstract 已废弃 → 兜底为 hash）
+          needsCreateWebHashHistory = true
+        }
 
         // 构造 createRouter({...})
         const newObj = t.objectExpression(keptProps)
@@ -255,6 +326,12 @@ const historyCall =
             '未指定 mode 的 new Router() 默认改为 createWebHashHistory()（vue-router 2/3 的默认值）。三种 mode 对应：hash→createWebHashHistory() (URL 带 #), history→createWebHistory() (需要服务端配合), abstract→createMemoryHistory() (Node/SSR 用, 无 URL)。如需 HTML5 history 模式，请改为 createWebHistory()。',
           )
         }
+        if (hasStrict) {
+          // P1-3: 通知用户 strict 字段已被移除
+          reviewItems.push(
+            'Vue Router 4 已移除 `strict` 配置项（行为上现在默认就是严格匹配尾部斜杠）。原 `strict: <expr>` 已自动删除，无需手动处理。',
+          )
+        }
       },
     })
 
@@ -284,9 +361,6 @@ const historyCall =
       const names: string[] = []
       if (needsCreateRouter) names.push('createRouter')
       if (needsCreateWebHashHistory) names.push('createWebHashHistory')
-      if (needsCreateWebHistory) names.push('createWebHistory')
-      if (needsCreateWebHashHistory) names.push('createWebHashHistory')
-      if (needsCreateWebHistory) names.push('createWebHistory')
       if (needsCreateWebHistory) names.push('createWebHistory')
 
       // 找到现有的 vue-router import（或创建）
@@ -336,6 +410,7 @@ for (const name of names) { const already = existing.specifiers.some(
 
     // ─── Pass G: 移除 import Vue（如果 Vue 在该文件中不再使用） ───
     // 简单方式：检查 import Vue from 'vue' 的 default specifier，若文件中没有 'Vue' identifier 引用则移除
+    // 如果整个 import 都没 specifier 了，连整条 import 也删掉（避免留下无意义的 `import 'vue';` 副作用 import）
     let vueIdentifierUsed = false
     traverse(ctx.file.scriptAst, {
       Identifier(path: any) {
@@ -366,6 +441,10 @@ for (const name of names) { const already = existing.specifiers.some(
               // 移除 default specifier
               path.node.specifiers.splice(defaultIdx, 1)
               changed = true
+              // 如果整个 import 都没 specifier 了，整条删掉
+              if (path.node.specifiers.length === 0) {
+                path.remove()
+              }
             }
           }
         },

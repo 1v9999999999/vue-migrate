@@ -23,6 +23,9 @@ import {
   registerPlugin,
   type TransformPlugin,
   type TransformContext,
+  inferStoreNameFromPath,
+  storeIdToExportName,
+  setMainStoreExportName,
 } from '@vue-migrate/core'
 
 // @ts-ignore
@@ -204,10 +207,48 @@ let inlineState: t.ObjectExpression | null = null
         console.log(`[vuex-pinia] inlineState: ${!!inlineState}, inlineMutations: ${!!inlineMutations}, inlineActions: ${!!inlineActions}`)
       }
 
-      // 生成 Pinia store
-      // 提取 export default 后的名字
-      const storeName = inferStoreNameFromPath(ctx.file.path) || 'store'
-      const exportName = 'use' + capitalize(storeName) + 'Store'
+      // P0-B: 生成 Pinia store id + export 名字
+      // 优先级:
+      //  1. `new Vuex.Store({namespace: 'app'})` → 'app' (用户显式给的业务命名)
+      //  2. 共享 `inferStoreNameFromPath(filePath)` (file path → store id)
+      //  3. 'app' (回退, 比 'store' 更有业务语义)
+      //
+      // 'store' 名字太通用, 直接 fallback 到 'app', 避免组件 import `useStoreStore`
+      // 但项目里只有一个 store 时用户还得手动改名。
+      let storeName: string | null = null
+
+      // Priority 1: namespace from `new Vuex.Store({namespace: 'xxx'})`
+      // (非标准 Vuex 写法, 但某些项目用, 兼容一下)
+      const namespaceProp = options.properties.find(
+        (p: any) =>
+          t.isObjectProperty(p) &&
+          ((t.isIdentifier(p.key) && p.key.name === 'namespace') ||
+            (t.isStringLiteral(p.key) && p.key.value === 'namespace')),
+      )
+      if (namespaceProp && t.isObjectProperty(namespaceProp) && t.isStringLiteral(namespaceProp.value)) {
+        const ns = namespaceProp.value.value.trim()
+        if (ns) storeName = ns
+      }
+
+      // Priority 2: shared `inferStoreNameFromPath`
+      if (!storeName) {
+        storeName = inferStoreNameFromPath(ctx.file.path)
+      }
+
+      // Priority 3: 'app' fallback (比 'store' 更业务语义)
+      if (!storeName || storeName === 'store') {
+        storeName = 'app'
+      }
+
+      const exportName = storeIdToExportName(storeName)
+
+      // P0-B: 告诉 composition 插件项目的 main store export 名字
+      // 后续 composition 在组件里 import 同一名字, 避免 "useLoginStore is undefined"
+      setMainStoreExportName(ctx, exportName)
+      if (ctx.project.storeNames && !ctx.project.storeNames.mainId) {
+        ctx.project.storeNames.mainId = storeName
+        ctx.project.storeNames.mainFilePath = ctx.file.path
+      }
 
       // 构造属性
 const props: t.ObjectProperty[] = []
@@ -416,26 +457,6 @@ function findImportPath(file: any, localName: string): string | null {
     },
   })
   return found
-}
-
-function inferStoreNameFromPath(filePath: string): string | null {
-  if (!filePath)
-  return null
-  const parts = filePath.replace(/\\/g, '/').split('/')
-  const base = parts[parts.length - 1].replace(/\.(js|ts|vue)$/, '')
-  // 如果是 index，取上一级目录名
-  if (base === 'index') {
-    const parent = parts[parts.length - 2]
-    if (parent && parent !== 'src' && parent !== 'lib' && parent !== 'dist') {
-      return parent
-    }
-    return 'store'
-  }
-  return base
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function findNewVuexStorePath(ast: any): any {

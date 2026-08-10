@@ -40,73 +40,74 @@
 </template>
 
 <script setup>
-import headTop from '../components/headTop'
-    import {getUserList, getUserCount} from '@/api/getData'
+import headTop from '../components/headTop';
+import { getUserList, getUserCount } from '@/api/getData';
 
 import { reactive, ref } from 'vue'
 
-const tableData = reactive<any[]>([{
-    registe_time: '2016-05-02',
-    username: '王小虎',
-    city: '上海市普陀区金沙江路 1518 弄'
-  }, {
-    registe_time: '2016-05-04',
-    username: '王小虎',
-    city: '上海市普陀区金沙江路 1517 弄'
-  }, {
-    registe_time: '2016-05-01',
-    username: '王小虎',
-    city: '上海市普陀区金沙江路 1519 弄'
-  }, {
-    registe_time: '2016-05-03',
-    username: '王小虎',
-    city: '上海市普陀区金沙江路 1516 弄'
+const tableData = reactive([{
+  registe_time: '2016-05-02',
+  username: '王小虎',
+  city: '上海市普陀区金沙江路 1518 弄'
+}, {
+  registe_time: '2016-05-04',
+  username: '王小虎',
+  city: '上海市普陀区金沙江路 1517 弄'
+}, {
+  registe_time: '2016-05-01',
+  username: '王小虎',
+  city: '上海市普陀区金沙江路 1519 弄'
+}, {
+  registe_time: '2016-05-03',
+  username: '王小虎',
+  city: '上海市普陀区金沙江路 1516 弄'
 }])
-const currentRow = ref<null>(null)
-const offset = ref<number>(0)
-const limit = ref<number>(20)
-const count = ref<number>(0)
-const currentPage = ref<number>(1)
-
-async function initData() {
-  try{
-      const countData = await getUserCount();
-      if (countData.status == 1) {
-          count.value = countData.count;
-      }else{
-          throw new Error('获取数据失败');
-      }
-      getUsers();
-  }catch(err){
-      console.log('获取数据失败', err);
-  }
-}
-
-function handleSizeChange(val) {
-  console.log(`每页 ${val} 条`);
-}
-
-function handleCurrentChange(val) {
-  currentPage.value = val;
-  offset.value = (val - 1)*limit.value;
-  getUsers()
-}
-
-async function getUsers() {
-  const Users = await getUserList({offset: offset.value, limit: limit.value});
-  Object.assign(tableData, []);
-  Users.forEach(item => {
-      const tableDataLocal = {};
-      tableDataLocal.username = item.username;
-      tableDataLocal.registe_time = item.registe_time;
-      tableDataLocal.city = item.city;
-      tableData.push(tableDataLocal);
-  })
-}
+const currentRow = ref(null)
+const offset = ref(0)
+const limit = ref(20)
+const count = ref(0)
+const currentPage = ref(1)
 
 // --- created() inline ---
-initData();
+  initData();
+async function initData() {
+    try {
+    const countData = await getUserCount();
+    if (countData.status == 1) {
+      count.value = countData.count;
+    } else {
+      throw new Error('获取数据失败');
+    }
+    getUsers();
+  } catch (err) {
+    console.log('获取数据失败', err);
+  }
+}
+function handleSizeChange(val) {
+    console.log(`每页 ${val} 条`);
+}
+function handleCurrentChange(val) {
+    currentPage.value = val;
+  offset.value = (val - 1) * limit.value;
+  getUsers();
+}
+async function getUsers() {
+    const Users = await getUserList({
+    offset: offset.value,
+    limit: limit.value
+  });
+  tableData.splice(0, tableData.length, ...[]);
+  Users.forEach(item => {
+    const tableData = {};
+    tableData.username = item.username;
+    tableData.registe_time = item.registe_time;
+    tableData.city = item.city;
+    tableData.push(tableData);
+  });
+}
 
+
+;
 </script>
 
 <style lang="less">

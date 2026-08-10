@@ -80,33 +80,33 @@
 					<el-form-item label="上传店铺头像">
 						<el-upload
 						  class="avatar-uploader"
-						  :action="baseUrl + '/v1/addimg/shop'"
+						  :action="baseUrlData + '/v1/addimg/shop'"
 						  :show-file-list="false"
 						  :on-success="handleShopAvatarScucess"
 						  :before-upload="beforeAvatarUpload">
-						  <img v-if="formData.image_path" :src="baseImgPath + formData.image_path" class="avatar">
+						  <img v-if="formData.image_path" :src="baseImgPathData + formData.image_path" class="avatar">
 						  <el-icon class="avatar-uploader-icon" v-else ><Plus /></el-icon>
 						</el-upload>
 					</el-form-item>
 					<el-form-item label="上传营业执照">
 						<el-upload
 						  class="avatar-uploader"
-						  :action="baseUrl + '/v1/addimg/shop'"
+						  :action="baseUrlData + '/v1/addimg/shop'"
 						  :show-file-list="false"
 						  :on-success="handleBusinessAvatarScucess"
 						  :before-upload="beforeAvatarUpload">
-						  <img v-if="formData.business_license_image" :src="baseImgPath + formData.business_license_image" class="avatar">
+						  <img v-if="formData.business_license_image" :src="baseImgPathData + formData.business_license_image" class="avatar">
 						  <el-icon class="avatar-uploader-icon" v-else ><Plus /></el-icon>
 						</el-upload>
 					</el-form-item>
 					<el-form-item label="上传餐饮服务许可证">
 						<el-upload
 						  class="avatar-uploader"
-						  :action="baseUrl + '/v1/addimg/shop'"
+						  :action="baseUrlData + '/v1/addimg/shop'"
 						  :show-file-list="false"
 						  :on-success="handleServiceAvatarScucess"
 						  :before-upload="beforeAvatarUpload">
-						  <img v-if="formData.catering_service_license_image" :src="baseImgPath + formData.catering_service_license_image" class="avatar">
+						  <img v-if="formData.catering_service_license_image" :src="baseImgPathData + formData.catering_service_license_image" class="avatar">
 						  <el-icon class="avatar-uploader-icon" v-else ><Plus /></el-icon>
 						</el-upload>
 					</el-form-item>
@@ -146,12 +146,10 @@
 					    	label="操作"
 					    	width="120">
 					    <template #default="scope">
-					        <template>
-    					        <el-button
-    					          size="small"
-    					          type="danger"
-    					          @click="handleDelete(scope.$index)">删除</el-button>
-					        </template>
+					        <el-button
+					          size="small"
+					          type="danger"
+					          @click="handleDelete(scope.$index)">删除</el-button>
 					    </template>
 					    </el-table-column>
 					</el-table>
@@ -165,26 +163,30 @@
 </template>
 
 <script setup>
-import headTop from '@/components/headTop'
-    import {cityGuess, addShop, searchplace, foodCategory} from '@/api/getData'
-    import {baseUrl, baseImgPath} from '@/config/env'
-import { ElMessage } from 'element-plus'
-import { ElMessageBox } from 'element-plus'
-import { ElNotification } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue';
+import headTop from '@/components/headTop';
+import { cityGuess, addShop, searchplace, foodCategory } from '@/api/getData';
+import { baseUrl, baseImgPath } from '@/config/env';
+import { ElMessage, ElMessageBox, ElNotification } from "element-plus";
 
 import { onMounted, reactive, ref } from 'vue'
 
-const city = reactive<object>({})
-const formData = reactive<object>({
-  name: '', //店铺名称
-  address: '', //地址
+const city = reactive({})
+const formData = reactive({
+  name: '',
+  //店铺名称
+  address: '',
+  //地址
   latitude: '',
   longitude: '',
-  description: '', //介绍
+  description: '',
+  //介绍
   phone: '',
   promotion_info: '',
-  float_delivery_fee: 5, //运费
-  float_minimum_order_amount: 20, //起价
+  float_delivery_fee: 5,
+  //运费
+  float_minimum_order_amount: 20,
+  //起价
   is_premium: true,
   delivery_mode: true,
   new: true,
@@ -192,273 +194,280 @@ const formData = reactive<object>({
   zhun: true,
   piao: true,
   startTime: '',
-         endTime: '',
-         image_path: '',
-         business_license_image: '',
-         catering_service_license_image: '',
-
+  endTime: '',
+  image_path: '',
+  business_license_image: '',
+  catering_service_license_image: ''
 })
-const rules = reactive<object>({
-  name: [
-   { required: true, message: '请输入店铺名称', trigger: 'blur' },
-  ],
-  address: [
-   { required: true, message: '请输入详细地址', trigger: 'blur' }
-  ],
-  phone: [
-   { required: true, message: '请输入联系电话' },
-   { type: 'number', message: '电话号码必须是数字' }
-  ],
+const rules = reactive({
+  name: [{
+    required: true,
+    message: '请输入店铺名称',
+    trigger: 'blur'
+  }],
+  address: [{
+    required: true,
+    message: '请输入详细地址',
+    trigger: 'blur'
+  }],
+  phone: [{
+    required: true,
+    message: '请输入联系电话'
+  }, {
+    type: 'number',
+    message: '电话号码必须是数字'
+  }]
 })
-const options = reactive<any[]>([{
-     value: '满减优惠',
-     label: '满减优惠'
-  }, {
-     value: '优惠大酬宾',
-     label: '优惠大酬宾'
-  }, {
-     value: '新用户立减',
-     label: '新用户立减'
-  }, {
-     value: '进店领券',
-     label: '进店领券'
+const options = reactive([{
+  value: '满减优惠',
+  label: '满减优惠'
+}, {
+  value: '优惠大酬宾',
+  label: '优惠大酬宾'
+}, {
+  value: '新用户立减',
+  label: '新用户立减'
+}, {
+  value: '进店领券',
+  label: '进店领券'
 }])
-const activityValue = ref<string>('满减优惠')
-const activities = reactive<any[]>([{
+const activityValue = ref('满减优惠')
+const activities = reactive([{
   icon_name: '减',
   name: '满减优惠',
-  description: '满30减5，满60减8',
+  description: '满30减5，满60减8'
 }])
-const categoryOptions = ref<unknown[]>([])
-const selectedCategory = ref<unknown[]>(['快餐便当', '简餐'])
+const baseUrlData = ref(baseUrl)
+const baseImgPathData = ref(baseImgPath)
+const categoryOptions = reactive([])
+const selectedCategory = reactive(['快餐便当', '简餐'])
 
-const formDataRef = ref<any>(null)
+const formDataRef = ref(null)
+
+const __refsMap = {
+  formDataRef: formDataRef,
+  formData: formDataRef
+}
 
 async function initData() {
-      			try{
-      				Object.assign(city, await cityGuess());
-      				const categories = await foodCategory();
-      				categories.forEach(item => {
-      					if (item.sub_categories.length) {
-      						const addnew = {
-      							value: item.name,
-  						        label: item.name,
-  						        children: []
-      						}
-      						item.sub_categories.forEach((subitem, index) => {
-      							if (index == 0) {
-      								return
-      							}
-      							addnew.children.push({
-      								value: subitem.name,
-  						        	label: subitem.name,
-      							})
-      						})
-      						categoryOptions.value.push(addnew)
-
-      					}
-      				})
-      			}catch(err){
-      				console.log(err);
-      			}
+    try {
+    Object.assign(city, await cityGuess());
+    const categories = await foodCategory();
+    categories.forEach(item => {
+      if (item.sub_categories.length) {
+        const addnew = {
+          value: item.name,
+          label: item.name,
+          children: []
+        };
+        item.sub_categories.forEach((subitem, index) => {
+          if (index == 0) {
+            return;
+          }
+          addnew.children.push({
+            value: subitem.name,
+            label: subitem.name
+          });
+        });
+        categoryOptions.push(addnew);
+      }
+    });
+  } catch (err) {
+    console.log(err);
+  }
 }
-
 async function querySearchAsync(queryString, cb) {
-  if (queryString) {
-  	try{
-  		const cityList = await searchplace(city.id, queryString);
-  		if (cityList instanceof Array) {
-  			cityList.map(item => {
-  				item.value = item.address;
-  				return item;
-  			})
-  			cb(cityList)
-  		}
-  	}catch(err){
-  		console.log(err)
-  	}
+    if (queryString) {
+    try {
+      const cityList = await searchplace(city.id, queryString);
+      if (cityList instanceof Array) {
+        cityList.map(item => {
+          item.value = item.address;
+          return item;
+        });
+        cb(cityList);
+      }
+    } catch (err) {
+      console.log(err);
+    }
   }
 }
-
 function addressSelect(address) {
-  formData.latitude = address.latitude;
+    formData.latitude = address.latitude;
   formData.longitude = address.longitude;
-  console.log(formData.latitude, formData.longitude)
+  console.log(formData.latitude, formData.longitude);
 }
-
 function handleShopAvatarScucess(res, file) {
-  if (res.status == 1) {
-  	formData.image_path = res.image_path;
-  }else{
-  	ElMessage.error('上传图片失败！');
+    if (res.status == 1) {
+    formData.image_path = res.image_path;
+  } else {
+    ElMessage.error('上传图片失败！');
   }
 }
-
 function handleBusinessAvatarScucess(res, file) {
-  if (res.status == 1) {
-  	formData.business_license_image = res.image_path;
-  }else{
-  	ElMessage.error('上传图片失败！');
+    if (res.status == 1) {
+    formData.business_license_image = res.image_path;
+  } else {
+    ElMessage.error('上传图片失败！');
   }
 }
-
 function handleServiceAvatarScucess(res, file) {
-  if (res.status == 1) {
-  	formData.catering_service_license_image = res.image_path;
-  }else{
-  	ElMessage.error('上传图片失败！');
+    if (res.status == 1) {
+    formData.catering_service_license_image = res.image_path;
+  } else {
+    ElMessage.error('上传图片失败！');
   }
 }
-
 function beforeAvatarUpload(file) {
-  				const isRightType = (file.type === 'image/jpeg') || (file.type === 'image/png');
-  				const isLt2M = file.size / 1024 / 1024 < 2;
-
-  				if (!isRightType) {
-  					ElMessage.error('上传头像图片只能是 JPG 格式!');
-  				}
-  				if (!isLt2M) {
-  					ElMessage.error('上传头像图片大小不能超过 2MB!');
-  				}
-  				return isRightType && isLt2M;
+    const isRightType = file.type === 'image/jpeg' || file.type === 'image/png';
+  const isLt2M = file.size / 1024 / 1024 < 2;
+  if (!isRightType) {
+    ElMessage.error('上传头像图片只能是 JPG 格式!');
+  }
+  if (!isLt2M) {
+    ElMessage.error('上传头像图片大小不能超过 2MB!');
+  }
+  return isRightType && isLt2M;
 }
-
 function tableRowClassName(row, index) {
-  if (index === 1) {
-  	return 'info-row';
+    if (index === 1) {
+    return 'info-row';
   } else if (index === 3) {
-  	return 'positive-row';
+    return 'positive-row';
   }
   return '';
 }
-
 function selectActivity() {
-  ElMessageBox.prompt('请输入活动详情', '提示', {
-       	confirmButtonText: '确定',
-       	cancelButtonText: '取消',
-     }).then(({ value }) => {
-     	if (value == null) {
-     		ElMessage({
-           type: 'info',
-           message: '请输入活动详情'
-       });
-     		return
-     	}
-       	let newObj = {};
-       	switch(activityValue.value){
-       		case '满减优惠':
-       			newObj= {
-       				icon_name: '减',
-        	name: '满减优惠',
-        	description: value,
-       			}
-       			break;
-       		case '优惠大酬宾':
-       			newObj= {
-       				icon_name: '特',
-        	name: '优惠大酬宾',
-        	description: value,
-       			}
-       			break;
-       		case '新用户立减':
-       			newObj= {
-       				icon_name: '新',
-        	name: '新用户立减',
-        	description: value,
-       			}
-       			break;
-       		case '进店领券':
-       			newObj= {
-       				icon_name: '领',
-        	name: '进店领券',
-        	description: value,
-       			}
-       			break;
-       	}
-       	activities.push(newObj);
-     }).catch(() => {
-       	ElMessage({
-         	type: 'info',
-         	message: '取消输入'
-       	});
-     });
+    ElMessageBox.prompt('请输入活动详情', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消'
+  }).then(({
+    value
+  }) => {
+    if (value == null) {
+      ElMessage({
+        type: 'info',
+        message: '请输入活动详情'
+      });
+      return;
+    }
+    let newObj = {};
+    switch (activityValue.value) {
+      case '满减优惠':
+        newObj = {
+          icon_name: '减',
+          name: '满减优惠',
+          description: value
+        };
+        break;
+      case '优惠大酬宾':
+        newObj = {
+          icon_name: '特',
+          name: '优惠大酬宾',
+          description: value
+        };
+        break;
+      case '新用户立减':
+        newObj = {
+          icon_name: '新',
+          name: '新用户立减',
+          description: value
+        };
+        break;
+      case '进店领券':
+        newObj = {
+          icon_name: '领',
+          name: '进店领券',
+          description: value
+        };
+        break;
+    }
+    activities.push(newObj);
+  }).catch(() => {
+    ElMessage({
+      type: 'info',
+      message: '取消输入'
+    });
+  });
 }
-
 function handleDelete(index) {
-  activities.splice(index, 1)
+    activities.splice(index, 1);
 }
-
 function submitForm(formName) {
-  (__refsMap[formName] as any)?.value.validate(async (valid) => {
-  	if (valid) {
-  		Object.assign(formData, {activities: activities}, {
-  			category: selectedCategory.value.join('/')
-  		})
-  		try{
-  			let result = await addShop(formData);
-  			if (result.status == 1) {
-  				ElMessage({
-  	            	type: 'success',
-  	            	message: '添加成功'
-  	          	});
-  	          	Object.assign(formData, {
-  					name: '', //店铺名称
-  					address: '', //地址
-  					latitude: '',
-  					longitude: '',
-  					description: '', //介绍
-  					phone: '',
-  					promotion_info: '',
-  					float_delivery_fee: 5, //运费
-  					float_minimum_order_amount: 20, //起价
-  					is_premium: true,
-  					delivery_mode: true,
-  					new: true,
-  					bao: true,
-  					zhun: true,
-  					piao: true,
-  					startTime: '',
-         	 			endTime: '',
-         	 			image_path: '',
-         	 			business_license_image: '',
-         	 			catering_service_license_image: '',
-  		        });
-  		        selectedCategory.value = ['快餐便当', '简餐'];
-  		        Object.assign(activities, [{
-  		        	icon_name: '减',
-  		        	name: '满减优惠',
-  		        	description: '满30减5，满60减8',
-  			    }]);
-  			}else{
-  				ElMessage({
-  	            	type: 'error',
-  	            	message: result.message
-  	          	});
-  			}
-  			console.log(result)
-  		}catch(err){
-  			console.log(err)
-  		}
-  	} else {
-  		ElNotification.error({
-  			title: '错误',
-  			message: '请检查输入是否正确',
-  			offset: 100
-  		});
-  		return false;
-  	}
+    __refsMap[formName]?.value.validate(async valid => {
+    if (valid) {
+      Object.assign(formData, {
+        activities: activities
+      }, {
+        category: selectedCategory.join('/')
+      });
+      try {
+        let result = await addShop(formData);
+        if (result.status == 1) {
+          ElMessage({
+            type: 'success',
+            message: '添加成功'
+          });
+          Object.assign(formData, {
+            name: '',
+            //店铺名称
+            address: '',
+            //地址
+            latitude: '',
+            longitude: '',
+            description: '',
+            //介绍
+            phone: '',
+            promotion_info: '',
+            float_delivery_fee: 5,
+            //运费
+            float_minimum_order_amount: 20,
+            //起价
+            is_premium: true,
+            delivery_mode: true,
+            new: true,
+            bao: true,
+            zhun: true,
+            piao: true,
+            startTime: '',
+            endTime: '',
+            image_path: '',
+            business_license_image: '',
+            catering_service_license_image: ''
+          });
+          selectedCategory.splice(0, selectedCategory.length, ...['快餐便当', '简餐']);
+          activities.splice(0, activities.length, ...[{
+            icon_name: '减',
+            name: '满减优惠',
+            description: '满30减5，满60减8'
+          }]);
+        } else {
+          ElMessage({
+            type: 'error',
+            message: result.message
+          });
+        }
+        console.log(result);
+      } catch (err) {
+        console.log(err);
+      }
+    } else {
+      ElNotification({
+        type: "error",
+        title: '错误',
+        message: '请检查输入是否正确',
+        offset: 100
+      });
+      return false;
+    }
   });
 }
 
 onMounted(() => {
-  initData();
-});
+    initData();
+})
 
-// 动态 ref 映射：this.$refs[原名] → __refsMap[原名]?.value
-const __refsMap: Record<string, any> = {
-  formData: formDataRef,
-}
-
+;
 </script>
 
 <style lang="less">

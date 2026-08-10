@@ -96,6 +96,11 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
           results.set(file.path, code)
         } else {
           console.log(`[codegen-DEBUG] selfCheck FAIL: ${file.relativePath} err=${check.error?.slice(0, 200)}`)
+          if (process.env.DBG_CG) {
+            console.log('--- BEGIN code ---')
+            console.log(code)
+            console.log('--- END code ---')
+          }
           file.transforms.push({
             plugin: 'core/codegen',
             message: 'self-check failed, skipping',

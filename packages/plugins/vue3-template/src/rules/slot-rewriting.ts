@@ -154,7 +154,14 @@ function buildTemplateOpenTag(
   let newAttrText = ''
   let cursor = 0
   for (const a of kept) {
-    if (a.start > cursor) newAttrText += attrText.slice(cursor, a.start)
+    if (a.start > cursor) {
+      // 跳过 cursor..a.start 之间任何被过滤掉的 attr (slot / slot-scope) 文本，
+      // 只保留紧贴当前 attr 的前导空白。直接 slice(cursor, a.start) 会把
+      // 已过滤的 slot="..." 文本也带进来，参见 P1-2 bug。
+      let p = a.start
+      while (p > cursor && (attrText[p - 1] === ' ' || attrText[p - 1] === '\t')) p--
+      newAttrText += attrText.slice(p, a.start)
+    }
     newAttrText += a.raw
     cursor = a.end
   }
@@ -182,7 +189,14 @@ function rebuildElementParts(el: ElementMatch, source: string): ElementParts {
   let newAttrText = ''
   let cursor = 0
   for (const a of kept) {
-    if (a.start > cursor) newAttrText += attrText.slice(cursor, a.start)
+    if (a.start > cursor) {
+      // 跳过 cursor..a.start 之间任何被过滤掉的 attr (slot / slot-scope) 文本，
+      // 只保留紧贴当前 attr 的前导空白。直接 slice(cursor, a.start) 会把
+      // 已过滤的 slot="..." 文本也带进来，参见 P1-2 bug。
+      let p = a.start
+      while (p > cursor && (attrText[p - 1] === ' ' || attrText[p - 1] === '\t')) p--
+      newAttrText += attrText.slice(p, a.start)
+    }
     newAttrText += a.raw
     cursor = a.end
   }

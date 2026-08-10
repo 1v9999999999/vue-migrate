@@ -4,6 +4,22 @@
 
 ## Open
 
+### C1. Pinia store id æ¨æ–­ä¸å‡†ï¼ˆæ ‡ review è®©ç”¨æˆ·æ‰‹æ”¹ï¼‰
+
+- **Type**: cosmetic
+- **Severity**: minor
+- **Files**: `examples/vue2-manage-master/src/store/index.js`, `examples/ve-admin-test/src/store/index.js` ç­‰æ‰€æœ‰ `index.js` store
+- **ç°çŠ¶ (iter-043)**: `inferStoreNameFromPath('src/store/index.js')` è¿”å› `'store'`ï¼Œæ‰€ä»¥è¾“å‡º `export const useStoreStore = defineStore("store", {...})` â€” store id é‡å¤äº†"store"ä¸¤æ¬¡ï¼Œä¸å¤Ÿæ˜ç¡®
+- **ä¿®å¤ç­–ç•¥**: å·²åŠ  review æç¤ºç”¨æˆ·æ”¹ store id å’Œ export åå­—ï¼›è‡ªåŠ¨æ”¹éœ€è¦æ‰«æé¡¹ç›®å…¶ä»–æ–‡ä»¶çš„ import è¯­å¥ï¼ˆä¸åœ¨æœ¬è½®èŒƒå›´ï¼‰
+
+### C2. P1-1 è¾¹ç¼˜æƒ…å†µï¼štemplate ref ä¸ data å­—æ®µåŒåï¼ˆå·²éƒ¨åˆ†ä¿®ï¼Œæ¨¡æ¿æ”¹åä½†æœ‰æ­§ä¹‰ï¼‰
+
+- **Type**: semantic
+- **Severity**: minor
+- **Files**: `examples/vue2-manage-master/src/page/login.vue` (ref="loginForm" ä¸ data.loginForm åŒå)
+- **ç°çŠ¶ (iter-041)**: æ¨¡æ¿ `ref="loginForm"` è¢«æ”¹åä¸º `ref="loginFormRef"`ï¼Œscript ç”Ÿæˆ `const loginFormRef = ref(null)`ï¼Œ`__refsMap` åŠ ä¸Š alias `loginForm: loginFormRef` å…¼å®¹è€çš„ `this.$refs['loginForm']` åŠ¨æ€æŸ¥æ‰¾ã€‚**ä½†ç”¨æˆ·ä»£ç é‡Œ `ref="loginForm"` å†™æ­»** çš„è¯ä»ç„¶å¼•ç”¨ä¸å­˜åœ¨çš„ name, åº”æ”¹ä¸º `ref="loginFormRef"`
+- **ä¿®å¤ç­–ç•¥**: æ¨¡æ¿ ref æ”¹åæ˜¯å¿…è¦çš„(å¦åˆ™ ref ä¼šç»‘åˆ° reactive data field ä¸Š, è€Œä¸æ˜¯çœŸæ­£çš„ ref), ç”¨æˆ·æ‰‹æ”¹è¿™ä¸€å¤„å³å¯
+
 ### 15. render function / å¼‚æ­¥ç»„ä»¶ (partial: æ ‡ review æç¤º)
 
 - **Type**: not implemented
@@ -535,7 +551,8 @@ vue-migrate transform <src> --ts
 **é—®é¢˜**ï¼švue3-entry æŠŠ Vue.use/filter/config.*/new Vue() å…¨è½¬æˆ Vue3 ç­‰ä»·ç‰©åï¼Œimport Vue from 'vue' è¿™è¡Œå°±æˆ unused import äº†ï¼Œä½†ä¹‹å‰æ²¡æ¸…ç†ã€‚
 
 **ä¿®å¤**ï¼š
-- packages/plugins/vue3-entry/src/utils.ts æ–°å¢ emoveVueDefaultImportIfUnused(file, markChanged)
+- packages/plugins/vue3-entry/src/utils.ts æ–°å¢ 
+emoveVueDefaultImportIfUnused(file, markChanged)
 - packages/plugins/vue3-entry/src/index.ts transform ç”¨ try/finally åŒ… entry æµç¨‹ï¼Œä¿è¯ finally å—**æ— è®º early return ä¸å¦éƒ½è·‘**ï¼ˆåŒ…æ‹¬ line 104 if (!isEntry) returnï¼‰
 - æ‰«æ AST æ‰¾ import Vue from 'vue' + æ‰¾ Vue æ ‡è¯†ç¬¦çš„ ReferencedIdentifier å¼•ç”¨
 - 0 å¼•ç”¨æ—¶ï¼š
@@ -587,7 +604,10 @@ const items = reactive<any[]>([])
 //                            ^^^^^ ç”¨æˆ·æ˜æ˜å†™çš„æ˜¯ JS, ä¸è¯¥åŠ æ³›å‹
 `
 
-å†…éƒ¨æœ‰ 5 å¤„éƒ½åŠ äº† TS æ³›å‹ï¼šef<T> / eactive<T> / defineEmits<T>() / ef<any>(null) Ã— 2ã€‚
+å†…éƒ¨æœ‰ 5 å¤„éƒ½åŠ äº† TS æ³›å‹ï¼š
+ef<T> / 
+eactive<T> / defineEmits<T>() / 
+ef<any>(null) Ã— 2ã€‚
 
 **ä¿®å¤**ï¼š
 - options-to-setup.ts åœ¨å‡½æ•°é¡¶éƒ¨ä» ile.sfc?.script?.lang + ile.metadata?.lang æ¨ isTs
@@ -607,7 +627,9 @@ const items = reactive<any[]>([])
 `
 
 **4 ä¸ªå•å…ƒæµ‹è¯•**ï¼ˆtest-lang-output.tsï¼‰ï¼š
-- <script lang="js"> â†’ è¾“å‡ºæ—  ef</eactive</defineEmits< âœ“
+- <script lang="js"> â†’ è¾“å‡ºæ—  
+ef</
+eactive</defineEmits< âœ“
 - <script> (æ—  lang) â†’ è¾“å‡ºæ— æ³›å‹ âœ“
 - metadata.lang undefined â†’ è¾“å‡ºæ— æ³›å‹ âœ“
 - <script lang="ts"> â†’ è¾“å‡ºæœ‰æ³›å‹ âœ“
@@ -618,3 +640,86 @@ const items = reactive<any[]>([])
 - tests: 188/188 pass (184 + 4 new)
 - å…¶ä»–æŒ‡æ ‡: compileOk / semanticDiff / runtimeSafe ä¸å˜ (1.000 / 1.000 / 1.000)
 
+
+## iter-043 highlights: ¶Ëµ½¶Ë 0 ±¨´í (vue2-manage-master / ve-admin-test / vue2-aegis / permission)
+
+### ±Õ»·Ä¿±ê
+ÈÃ 	ransform ÔÚ 4 ¸öÕæÊµ Vue 2 ÏîÄ¿ÉÏ**È«²¿ 0 ´íÎó**Í¨¹ı (²»½ö½öÊÇ sample outputValid=true)¡£Ç° 42 ÂÖµü´úÒÅÁôÁË 6 ¸ö P0 + 4 ¸ö P1 ¼¶ bug ×èÈû¶Ëµ½¶ËÅÜÍ¨¡£ÕâÒ»ÂÖ°Ñ 4 ¸öºËĞÄ sample (vue2-manage-master¡¢ve-admin-test¡¢vue2-aegis¡¢vue2-element-touzi-admin-dev-permission) È«²¿ÅÜµ½ ´íÎó: 0¡£
+
+### ĞŞ¸´µÄ 9 ¸ö bug
+
+**composition plugin (P0/P1)**
+- P0-3: reactive ¶ÔÏóµÄ 	his.x = {...} ´í×ª³É splice(0, x.length, ...) (¶ÔÏóÃ»ÓĞ splice). ĞŞ¸´: ¼Ó isArray ×Ö¶Î, ¶ÔÏóÓÃ Object.assign, Êı×éÓÃ splice.
+- P0-2: Vuex ×ÔÓÉ±äÁ¿ const adminInfo = ref(null) ±»ÍÆµ½ watch/mounted Ö®ºó, ´¥·¢ TDZ. ĞŞ¸´: ÒÆµ½ section 4.5, ÔÚ computed/watch Ö®Ç°.
+- P0-5: ...mapState(['x']) / ...mapActions(['y']) Ã»±»Ê¶±ğ, ×ß free variable fallback ¡ú ef(null) ¶ø²»ÊÇ computed(() => store.x). ĞŞ¸´: ÊµÏÖ detectVuexUsage + collectMapXxxSpread ÕæÕıÉ¨ export default ÀïµÄ spread, ×¢Èë useXxxStore import, Ìæ»» 	his.x ¡ú x.value / 	his.y() ¡ú y().
+- P1-1: <el-form ref="X"> ¸ú data ×Ö¶Î X Í¬Ãû, Ä£°å ref ±»¸ÄÃûÎª XRef µ« __refsMap Ã»Ìî, ¶¯Ì¬ 	his.[formName] ÄÃµ½ undefined. ĞŞ¸´: µ÷ÕıÔòÉ¨ <template> ¿éÊÕ¼¯ ref="x", Ä£°å ref/data ³åÍ»Ê±¸ø __refsMap ¼Ó Ô­Ãû: ĞÂÃû alias, ¼æÈİÀÏµÄ¶¯Ì¬²éÕÒ.
+- P1-4: 	his.<computed>.push(...) ×ª³É <computed>.push(...) (ComputedRef Ã»ÓĞ push). ĞŞ¸´: ¼ì²â 	his.x.<method>( Ä£Ê½, ÔÚ method-call ĞÎÊ½¼Ó .value, ²¢±ê review ËµÃ÷ computed mutation ÓïÒå±ä»¯.
+
+**vuex-pinia plugin (P0)**
+- P0-4: const state = {...} / const mutations = {...} / const actions = {...} ¶¥²ãÉùÃ÷Ã»É¾, ¸úĞÂÉú³ÉµÄ defineStore ÖØ¸´. ĞŞ¸´: ÊÕ¼¯ stateMutationGetterActionPaths, ×ª»»ÍêºóÖğ¸ö path.remove.
+- iter-043 ĞÂÔö: 
+ew Vuex.Store({modules: <identifier>}) ĞÎÊ½ (modules ÊÇ const ÒıÓÃ) Ã»±»Ê¶±ğÎª modules Ä£Ê½, ºóĞø codegen °Ñ export Èû½ø IIFE ´¥·¢ "import/export may only appear at the top level". ĞŞ¸´: °Ñ uexStoreCall = null ¸Ä³É if (hasModules) return early return, ÍêÈ«Ìø¹ı×Ô¶¯×ª»» + ±ê review.
+
+**vue3-template plugin (P1)**
+- P1-2: <el-dialog slot="footer"> ±» wrap ½ø <template #footer> ºó, ÄÚ²ã <div slot="footer"> µÄ slot ÊôĞÔÃ»°şµô, Element Plus ÖØ¸´äÖÈ¾. ĞŞ¸´: ÔÚ slot-rewriting.ts µÄ uildTemplateOpenTag / ebuildElementParts Àï, Ìø¹ı±»¹ıÂË attr Ê±Ö»±£ÁôÇ°µ¼¿Õ°×, ²»¸´ÖÆ slot ÎÄ±¾. ¼Ó 2 ¸ö»Ø¹é²âÊÔ.
+
+**vue-router-v4 plugin (P1)**
+- P1-3: strict: process.env.NODE_ENV !== 'production' Ã»±»É¾ (Vue Router 4 Ã»ÓĞ strict Ñ¡Ïî), ËÀ´úÂë. ĞŞ¸´: ÔÚ Pass C µÄ properties Ñ­»·Àï¼ì²â strict: ¼ü²¢ continue, Ä©Î²±ê review. Í¬Ê±¾«È·ÇåÀíÎ´ÓÃµÄ createWebHistory / createWebHashHistory import.
+
+### iter-043 state
+
+| Sample | ÎÄ¼şÊı | ´íÎóÊı | review Êı |
+|---|---|---|---|
+| vue2-manage-master | 28 | **0** ? | 40 |
+| ve-admin-test (87k star) | 195 | **0** ? | 198 |
+| vue2-aegis | 92 | **0** ? | - |
+| vue2-element-touzi-admin-dev-permission | - | **0** ? | - |
+
+examples/222/ ÒÑÓÃ×îĞÂ´úÂëÖØÅÜ¸²¸Ç (¾É°æ±¾±¸·İµ½ examples/222_legacy_20260810_212956/)¡£
+
+### 0 ±¨´í ¡Ù 0 review
+ÅÜÍ¨Ö»´ú±í codegen ×Ô¼ì¹ı + ²»»áÔËĞĞÊ±Å× ReferenceError / SyntaxError. Review Ïî (40 ¸ö) ´ó¶àÊÇ:
+- computed ÒıÓÃÓïÒå±ä»¯
+- Pinia store id Ì«Í¨ÓÃ
+- el-icon ¾É class ÓÃ·¨
+- Ç¶Ì× callback ÀïµÄ this
+
+ÕâĞ© review ÊÇ¸øÓÃ»§¿´µÄ hints, ²»ÊÇ bug.
+
+### ÈÔ open µÄ minor (·Ç×èÈû)
+- C1: Pinia store id ÍÆ¶Ï²»×¼ (Ò»°ãÊÇ "store" Ì«Í¨ÓÃ)
+- C2: P1-1 Ä£°å ref ¸ÄÃûºó, ÓÃ»§Ğ´ËÀ ef="X" ÈÔÒıÓÃÀÏÃû×Ö (µ« alias ÒÑ¼Óµ½ __refsMap, ²»»á±À)
+- #15 render shortcut: ½ö review ÌáÊ¾, ²»×Ô¶¯¸Ä
+
+## iter-046 highlights: **¶Ëµ½¶Ë build Í¨¹ı** (vue2-manage-master ¡ú Vite production build 0 ´í)
+
+### ±Õ»·Ä¿±ê
+ÈÃ×ª³öµÄ´úÂë**ÕæÊµÄÜ Vue 3 build**£¬²»½ö½öÊÇ plugin selfCheck Í¨¹ı¡£´îÁËÒ»¸ö _build_verify ²âÊÔÏîÄ¿£¨Vite 5 + Vue 3.4 + Pinia + Element Plus£©£¬°Ñ examples/vue2-manage-master/src/ ×ª³öµÄ´úÂë¿½¹ıÈ¥£¬**
+pm run build 4.42s Íê³É£¬0 errors**¡£
+
+### ĞŞµÄ 6 ¸öÕæ bug£¨Ö®Ç° selfCheck ¶¼Â©µô£©
+
+| ID | Bug | ¸ùÒò | ĞŞ·¨ |
+|---|---|---|---|
+| P0-A | unction addFood(foodForm) {} ¸ú import { addFood } ×²Ãû, babel ¾Ü¾ø | Vue 2 method ¸ú import ²»Í¬ scope, Ç¨µ½ setup ¶¥²ã³åÍ» | composition plugin ¼Ó importNames ¼ì²é, ³åÍ»Ê± method ¸ÄÃûÎª __ |
+| P0-B | main.js import useStoreStore µ« store export useAppStore | vue3-entry ºÍ vuex-pinia ¸÷×ÔÍÆ¶Ï store Ãû, ²»Ò»ÖÂ | vue3-entry ¼Ó getMainStoreExportName fallback, ÍÆ²»³öÊ±Ç¿ÖÆ useAppStore |
+| P0-C | outer/index.js ÓĞ Vue.use(Router) µ« Router Ã» import | vue-router-v4 Ã»´¦Àí Vue 2 plugin ²ĞÁô | ¼Ó Pass 0: É¨ Vue.use(X) µ÷ÓÃ, X ÒÑ import ÔòÉ¾ÕûĞĞ, Î´ import Ôò±ê review |
+| P0-D | main.js: createApp(defineComponent({template:'<App/>'})) Vue 3 ²»Ö§³Ö | vue3-entry °Ñ Vue 2 root options ÕÕ°á | ¼ì²â components: { App } 1 ÏîÊ±ÓÃ createApp(App) + import App from './App.vue' |
+| iter-46 | <i v-else slot="icon"> ×ª³É <el-icon v-else slot="icon"> È»ºó±» wrap ½ø <template #icon>, ±àÒëÊ§°Ü | elementui icon ×ª»»Ê±±£ÁôÁË slot ÊôĞÔ, ¸ú v-else ĞÖµÜ½ÚµãÂß¼­³åÍ» | elementui icon.ts °şµô slot / slot-scope ÊôĞÔ |
+| P0-G | 	his.userCount = res[0].count ÔÚ .then(res => {...}) ±Õ°üÀïÃ»Ìæ»» | data field rename (userCount ¡ú userCountData) ºó, replaceThisInBody Ö»²é .name | Í¬Ê±²é .originalName, ÓÃÔ­ÃûÒ²ÅÜÒ»±éÌæ»» |
+
+### ÑéÖ¤
+- 	ransform examples/vue2-manage-master/src ¡ú 28 ÎÄ¼ş, 0 errors, 63 ´¦ĞŞ¸Ä, 45 Ìõ review
+- _build_verify/ ÅÜ 
+pm run build ¡ú **4.42s, 0 errors**, ²ú³ö dist/ º¬ 17 ¸ö chunk
+- examples/222 ÒÑÓÃ×îĞÂ´úÂë¸²¸Ç£¨¾É°æ±¾ÒÑÉ¾£©
+
+### 0 build ±¨´í ¡Ù 0 review
+build Í¨¹ıÖ»´ú±íÄÜ compile, ²»´ú±íÄÜÅÜÆğÀ´. »¹ÓĞÕâĞ© review ÏîĞèÒªÈË¿´:
+- computed ÒıÓÃÓïÒå±ä»¯ (5 ´¦)
+- Pinia store id ÍÆ¶Ï²»×¼ (Ò»°ãÇé¿öÏÂ "app" »¹ĞĞ, ¶à store ³¡¾°ÒªÊÖ¸Ä)
+- ¸÷ÖÖ el-form validate »Øµ÷·ç¸ñ (Element Plus 2 ¸Ä Promise)
+- el-icon Í¼±êÃ»×¢²á (Òª¿¿ main.js È«¾Ö app.component ×¢²á)
+
+### ÈÔ open µÄ minor (·Ç×èÈû)
+- C1 / C2 / #15 (¸ú iter-043 Ò»Ñù)

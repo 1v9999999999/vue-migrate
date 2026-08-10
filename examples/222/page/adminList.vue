@@ -40,67 +40,68 @@
 </template>
 
 <script setup>
-import headTop from '../components/headTop'
-    import {adminList, adminCount} from '@/api/getData'
+import headTop from '../components/headTop';
+import { adminList, adminCount } from '@/api/getData';
 
-import { ref } from 'vue'
+import { reactive, ref } from 'vue'
 
-const tableData = ref<unknown[]>([])
-const currentRow = ref<null>(null)
-const offset = ref<number>(0)
-const limit = ref<number>(20)
-const count = ref<number>(0)
-const currentPage = ref<number>(1)
+const tableData = reactive([])
+const currentRow = ref(null)
+const offset = ref(0)
+const limit = ref(20)
+const count = ref(0)
+const currentPage = ref(1)
 
+// --- created() inline ---
+  initData();
 async function initData() {
-  try{
-      const countData = await adminCount();
-      if (countData.status == 1) {
-          count.value = countData.count;
-      }else{
-          throw new Error('获取数据失败');
-      }
-      getAdmin();
-  }catch(err){
-      console.log('获取数据失败', err);
+    try {
+    const countData = await adminCount();
+    if (countData.status == 1) {
+      count.value = countData.count;
+    } else {
+      throw new Error('获取数据失败');
+    }
+    getAdmin();
+  } catch (err) {
+    console.log('获取数据失败', err);
+  }
+}
+function handleSizeChange(val) {
+    console.log(`每页 ${val} 条`);
+}
+function handleCurrentChange(val) {
+    currentPage.value = val;
+  offset.value = (val - 1) * limit.value;
+  getAdmin();
+}
+async function getAdmin() {
+    try {
+    const res = await adminList({
+      offset: offset.value,
+      limit: limit.value
+    });
+    if (res.status == 1) {
+      tableData.splice(0, tableData.length, ...[]);
+      res.data.forEach(item => {
+        const tableItem = {
+          create_time: item.create_time,
+          user_name: item.user_name,
+          admin: item.admin,
+          city: item.city
+        };
+        tableData.push(tableItem);
+      });
+    } else {
+      throw new Error(res.message);
+    }
+  } catch (err) {
+    console.log('获取数据失败', err);
   }
 }
 
-function handleSizeChange(val) {
-  console.log(`每页 ${val} 条`);
-}
 
-function handleCurrentChange(val) {
-  currentPage.value = val;
-  offset.value = (val - 1)*limit.value;
-  getAdmin()
-}
-
-async function getAdmin() {
-    try{
-        const res = await adminList({offset: offset.value, limit: limit.value});
-        if (res.status == 1) {
-        	tableData.value = [];
-        	res.data.forEach(item => {
-        		const tableItem = {
-        			create_time: item.create_time,
-  user_name: item.user_name,
-  admin: item.admin,
-                    city: item.city,
-        		}
-        		tableData.value.push(tableItem)
-        	})
-        }else{
-        	throw new Error(res.message)
-        }
-    }catch(err){
-        console.log('获取数据失败', err);
-    }
-}
-
-// --- created() inline ---
-initData();
-
+;
 </script>
 
 <style lang="less">

@@ -4,6 +4,7 @@
 
 export * from './types.js'
 export * from './plugin.js'
+export * from './utils.js'
 export { runPipeline } from './orchestrator.js'
 export type { OrchestratorOptions } from './orchestrator.js'
 export { scanProject } from './scanner.js'

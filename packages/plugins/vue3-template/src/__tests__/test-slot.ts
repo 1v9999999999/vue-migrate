@@ -126,6 +126,34 @@ const cases: Array<{ name: string; input: string; expected: string }> = [
   </template>
 </my-list>`,
   },
+  {
+    name: 'P1-2: slot + other attrs on same element (slot must be stripped)',
+    input: `<el-dialog title="x" v-model="v">
+  <div slot="footer" class="dialog-footer">
+    <el-button>取 消</el-button>
+    <el-button type="primary">确 定</el-button>
+  </div>
+</el-dialog>`,
+    expected: `<el-dialog title="x" v-model="v">
+  <template #footer>
+    <div class="dialog-footer">
+      <el-button>取 消</el-button>
+      <el-button type="primary">确 定</el-button>
+    </div>
+  </template>
+</el-dialog>`,
+  },
+  {
+    name: 'P1-2: slot in middle, other attrs after — strip slot, keep rest',
+    input: `<my-card>
+  <div class="title" slot="header" id="h1">Hi</div>
+</my-card>`,
+    expected: `<my-card>
+  <template #header>
+    <div class="title" id="h1">Hi</div>
+  </template>
+</my-card>`,
+  },
 ]
 
 let pass = 0

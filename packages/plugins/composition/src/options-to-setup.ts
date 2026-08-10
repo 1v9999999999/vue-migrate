@@ -23,7 +23,11 @@ import _traverse from '@babel/traverse'
 import _generate from '@babel/generator'
 import _babelParser from '@babel/parser'
 import * as t from '@babel/types'
-import type { FileNode, TransformContext } from '@vue-migrate/core'
+import {
+  type FileNode,
+  type TransformContext,
+  getMainStoreExportName,
+} from '@vue-migrate/core'
 
 const traverse = (_traverse as any).default || _traverse
 const generate = (_generate as any).default || _generate
@@ -394,9 +398,10 @@ const injected: string[] = []
   //       to a no-op arrow function so `name(args)` doesn't throw "is not a function"
   //       at runtime.
   if (result.vuexStateNames.size > 0) {
-    // 估计 store name: 用文件相对路径推一个合理的 store id 后缀 (e.g. login.vue → "LoginStore")
+    // 估计 store name: 优先用 vuex-pinia 写下的 mainExportName (e.g. useAppStore),
+    // 否则用文件 basename 推一个 (e.g. login.vue → "LoginStore")。
     // 自动加入 import, 减少用户负担; 如果真实 store 名不同, 标 review 让用户改 import
-    const inferredStore = inferStoreNameFromFile(file)
+    const inferredStore = inferStoreNameFromFile(file, ctx)
     const importLine = `import { ${inferredStore} } from '@/store'`
     if (!result.extraImports.includes(importLine)) {
       result.extraImports.push(importLine)
@@ -412,7 +417,7 @@ const injected: string[] = []
     if (result.vuexStateNames.size > 0) lines.push('')
   }
   if (result.vuexActionNames.size > 0) {
-    const inferredStore = inferStoreNameFromFile(file)
+    const inferredStore = inferStoreNameFromFile(file, ctx)
     const importLine = `import { ${inferredStore} } from '@/store'`
     if (!result.extraImports.includes(importLine) && !result.extraImports.some((l) => l.includes(inferredStore))) {
       result.extraImports.push(importLine)
@@ -564,7 +569,18 @@ const injected: string[] = []
     body = replaceThisInBody(body, data, methods, computeds, props, refNames, refsToDeclare, result)
     const params = m.params.length > 0 ? m.params.join(', ') : ''
     const async_ = m.isAsync ? 'async ' : ''
-    lines.push(`${async_}function ${m.name}(${params}) {\n  ${body}\n}`)
+    // iter-044: 检测 method 名跟 import 冲突 (Vue 2 里 method 跟 import 在不同 scope,
+    // 迁到 <script setup> 顶层后 babel 拒绝重复声明). 冲突时 method 改名为 __${name} 并
+    // 标 review, 让用户手改 method 内部对自身的引用 (虽然 this.method 已经被替换,
+    // 但保险起见也可以再 grep 一遍).
+    let emitName = m.name
+    if (importNames.has(m.name) && !m.isLifecycle) {
+      emitName = `__${m.name}`
+      result.reviewItems.push(
+        `method "${m.name}" 与同文件 import 撞名 (Vue 2 在不同 scope 可共存, Vue 3 <script setup> 顶层会报 'Identifier has already been declared')。已自动改名为 "${emitName}", 请同步修改组件 template / 其他对该 method 的引用 (this.${m.name}() 等)。`,
+      )
+    }
+    lines.push(`${async_}function ${emitName}(${params}) {\n  ${body}\n}`)
   }
   if (methods.filter((m) => !m.isLifecycle).length > 0) lines.push('')
 
@@ -1134,10 +1150,23 @@ function collectMapXxxSpread(arg: any, addState: (n: string) => void, addAction:
 }
 
 /**
- * 从 file.path 推断一个合理的 Pinia store 名 (e.g. login.vue → "useLoginStore").
- * 仅作为 fallback hint; 真实项目里 store 名通常不与组件同名, 标记 review 让用户调整。
+ * P0-B: 从 file.path 推断一个合理的 Pinia store 名 (e.g. login.vue → "useLoginStore").
+ *
+ * 优先级:
+ *  1. 读 ctx.project.storeNames.mainExportName (vuex-pinia 写下的)
+ *     → 这是项目的主 store export 名字 (e.g. 'useAppStore'), 用它能保证
+ *     组件 import 名和 store 文件 export 名一致, 避免 "useLoginStore is undefined"。
+ *  2. 否则用文件 basename 推断 (e.g. login.vue → 'useLoginStore'),
+ *     作为 hint; 真实项目里 store 名通常不与组件同名, 标记 review 让用户调整。
  */
-function inferStoreNameFromFile(file: FileNode): string {
+function inferStoreNameFromFile(file: FileNode, ctx: TransformContext): string {
+  // Priority 1: 主 store export 名字 (由 vuex-pinia 写入)
+  // 注意: vuex-pinia priority=9, composition priority=0, 所以 vuex-pinia 先跑,
+  //       composition 跑的时候 storeNames.mainExportName 应该已经被设置好了。
+  const mainExportName = getMainStoreExportName(ctx)
+  if (mainExportName) return mainExportName
+
+  // Priority 2: 用文件 basename 推 (老逻辑, fallback)
   const path = (file?.path || '').toString()
   // 提取文件名 (去掉扩展名)
   const m = path.replace(/\\/g, '/').match(/\/([^/]+?)(?:\.vue|\.js|\.ts)?$/)
@@ -1401,11 +1430,16 @@ function replaceThisInBody(
   }
 
   for (const f of data.fields) {
-    const re = new RegExp(`\\bthis\\.${f.name}\\b`, 'g')
-    if (f.kind === 'ref') {
-      s = s.replace(re, `${f.name}.value`)
-    } else {
-      s = s.replace(re, f.name)
+    // iter-044: 如果 data field 之前被重命名 (e.g. `userCount` → `userCountData` 因为
+    // 跟 import 撞名), body 里可能还有 `this.userCount` 的旧引用 — 用 originalName
+    // 也跑一遍替换, 保证 this.<原名> 也被替换为 this.<新名>.value
+    const namesToReplace = f.originalName && f.originalName !== f.name
+      ? [f.originalName, f.name]
+      : [f.name]
+    for (const name of namesToReplace) {
+      const re = new RegExp(`\\bthis\\.${name}\\b`, 'g')
+      const repl = f.kind === 'ref' ? `${f.name}.value` : f.name
+      s = s.replace(re, repl)
     }
   }
 

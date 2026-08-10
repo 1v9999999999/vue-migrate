@@ -106,6 +106,23 @@ export interface ProjectContext {
   stats: MigrationStats
   /** 用户传入的配置 */
   config: MigrationConfig
+  /**
+   * 跨插件共享的命名信息 (P0-B 修复):
+   *  - vuex-pinia 在 store/index.js 上写 mainExportName (e.g. 'useAppStore')
+   *  - composition 在组件里读 mainExportName, 避免 import 名 / export 名对不上
+   * 类型在 utils.ts 里扩展; 此处用 optional 保持向后兼容.
+   */
+  storeNames?: ProjectStoreNames
+}
+
+/** P0-B: 跨插件共享的 store 命名信息, 由 vuex-pinia 写、composition 读 */
+export interface ProjectStoreNames {
+  /** 项目的 "主" store 的 export 名字 (e.g. 'useAppStore') */
+  mainExportName?: string
+  /** 项目的 "主" store 的 store id (defineStore 的第一个字符串参数) */
+  mainId?: string
+  /** 触发 mainExportName 设置的 store 文件路径 (debug 用) */
+  mainFilePath?: string
 }
 
 export interface MigrationStats {
@@ -153,6 +170,10 @@ export interface TransformContext {
 export interface TransformUtils {
   /** 重新解析 script（插件改完源码后调用） */
   reparse(): void
+  /** iter-038: 反向 sync — 把 file.scriptAst 重新 generate 写回 file.source。
+   * 用于 plugin 改了 scriptAst 但没写回 file.source 时 (e.g. elementui 改
+   * import 但 composition 后面会用 raw source 路径覆盖掉)。 */
+  syncScriptAstToSource(): void
   /** 标记文件已修改，可选 msg 描述本次改动 */
   markChanged(msg?: string): void
   /** 添加一个手动 review 项 */

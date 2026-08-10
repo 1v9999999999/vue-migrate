@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory } from 'vue-router';
 const login = r => () => /* webpackChunkName: "login" */import("@/page/login");
 const manage = r => () => /* webpackChunkName: "manage" */import("@/page/manage");
 const home = r => () => /* webpackChunkName: "home" */import("@/page/home");
@@ -87,6 +87,5 @@ const routes = [{
 }];
 export default createRouter({
   history: createWebHashHistory(),
-  routes,
-  strict: process.env.NODE_ENV !== 'production'
+  routes
 });

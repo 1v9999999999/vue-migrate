@@ -16,7 +16,7 @@ Vue 2 → Vue 3 自动化迁移工具集，包含**转换引擎** + **自演化�
 | 支持的 Vue 2 规则 | 56 |
 | ElementUI → Element Plus 规则 | 40 |
 | Options → Composition 规则 | 25（含 el-icon / template ref collision） |
-| 已实现插件 | 9（vue2-compat / vue3-entry / vue3-template / vue3-directives / vue3-types / elementui / composition / vue-router-v4 / vuex-pinia） |
+| 已实现插件 | 12（vue2-compat / vue3-entry / vue3-template / vue3-directives / vue3-types / elementui / composition / vue-router-v4 / vuex-pinia / vxe-table / package-json / import-cleaner） |
 | 测试样本 | 7 个项目（50+ 文件，含 stress 1000+ 行文件 + 真实电商后台） |
 | 真实项目通过率 | 28/28（vue2-manage-master） |
 | 自演化系统 | Phase 1 ✅ Phase 2 搭建中 |
@@ -28,7 +28,7 @@ vue-migrate/
 ├── packages/                    # 转换引擎
 │   ├── core/                   #   scanner / parser / codegen / reporter / orchestrator
 │   ├── cli/                    #   命令行入口
-│   └── plugins/                #   9 个迁移插件
+│   └── plugins/                #   12 个迁移插件
 ├── examples/                   # 测试样本
 │   ├── vue2-sample/            #   10 文件，单元测试级
 │   ├── vue2-manage-master/     #   28 文件，真实电商后台

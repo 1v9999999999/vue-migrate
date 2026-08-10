@@ -15,6 +15,7 @@ const testFiles = [
   'packages/plugins/package-json/src/__tests__/test-package-json.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-remove-vue-import.ts',
   'packages/plugins/composition/src/__tests__/test-lang-output.ts',
+  'packages/plugins/import-cleaner/src/__tests__/test-import-cleaner.ts',
 ]
 
 let totalPass = 0

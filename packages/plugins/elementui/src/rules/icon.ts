@@ -132,9 +132,14 @@ export function transformIcons(template: string): IconTransformResult {
       }
     }
     const otherAttrStr = attrTexts.length > 0 ? ' ' + attrTexts.join(' ') : ''
+    // iter-046: 剥掉 `slot` / `slot-scope` 属性 — 新生成的 <el-icon><Xxx /></el-icon> 是
+    // 自闭合单图标组件, 没有 slot 含义. 原 <i slot="icon"> 实际上是 v-else 兄弟节点 (跟
+    // v-if 切换图标), 保留 slot 会被 vue3-template wrap 成 <template #icon> 然后编译错.
+    // 这两个 attr 在 elementui icon 转换里应该丢弃.
+    const filteredAttrStr = otherAttrStr.replace(/\s+(slot|slot-scope)="[^"]*"/g, '').replace(/\s+(slot|slot-scope)='[^']*'/g, '')
     // 整个 <i ...></i> 替换为 <el-icon ...otherAttrs><Xxx /></el-icon>
     // 收集到 edits，统一由 applyEdits 右到左处理（避免前一次 splice 导致 offset 失效）
-    const newTag = `<el-icon${otherAttrStr}><${componentName} /></el-icon>`
+    const newTag = `<el-icon${filteredAttrStr}><${componentName} /></el-icon>`
     edits.push({ start: el.start, end: el.end, replacement: newTag })
     changes.push(`<i class="${elIconClass}"> → <el-icon><${componentName} /></el-icon>`)
     if (otherClasses.length > 0 && !seenIconClasses.has(elIconClass)) {

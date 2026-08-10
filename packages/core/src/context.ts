@@ -9,6 +9,7 @@ import type {
   TransformContext,
   TransformUtils,
 } from './types.js'
+import { syncScriptAstToSource as syncScriptAstToSourceImpl } from './sync-script-ast.js'
 
 export function createTransformContext(
   file: FileNode,
@@ -23,6 +24,14 @@ export function createTransformContext(
         parseFileImpl(file)
       } catch (e: any) {
         lastMessage = `reparse failed: ${e.message}`
+      }
+    },
+    syncScriptAstToSource() {
+      try {
+        syncScriptAstToSourceImpl(file)
+        lastMessage = `synced scriptAst → file.source`
+      } catch (e: any) {
+        lastMessage = `sync failed: ${e.message}`
       }
     },
     markChanged(msg?: string) {
@@ -45,6 +54,19 @@ export function createTransformContext(
     utils,
     log: (msg: string) => {
       lastMessage = msg
+    },
+    // iter-038: 同步 scriptAst → file.source
+    // 一些 plugin 改 file.scriptAst（elementui, vue3-types 等）后没写回
+    // file.source。当 composition / import-cleaner 跑 raw source 路径时，
+    // 这些改动会丢失。`syncScriptAstToSource` 重新 generate scriptAst
+    // 替换 file.source 里的 <script> 块。
+    syncScriptAstToSource: () => {
+      try {
+        syncScriptAstToSourceImpl(file)
+        lastMessage = `synced scriptAst → file.source`
+      } catch (e: any) {
+        lastMessage = `sync failed: ${e.message}`
+      }
     },
   }
 

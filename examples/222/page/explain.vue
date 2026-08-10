@@ -9,9 +9,11 @@
 </template>
 
 <script setup>
-import headTop from '../components/headTop'
+import headTop from '../components/headTop';
 
 
+
+;
 </script>
 
 <style lang="less">

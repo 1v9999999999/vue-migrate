@@ -59,6 +59,12 @@ const plugin: TransformPlugin = {
       return
     }
 
+    // 0. CRITICAL: resync sfc.script.loc from current file.source first.
+    //    Earlier plugins (elementui icon.ts, etc.) may have inserted imports
+    //    into file.source without updating sfc loc, so a stale loc points at
+    //    template content (and babel parse fails on it).
+    resyncScriptLoc(ctx.file)
+
     const result = convertOptionsToSetup(ctx.file, ctx)
     if (!result.changed)
     return
@@ -108,6 +114,11 @@ const scriptInner = source.substring(scriptInnerStart, scriptInnerEnd)
     //     e.g. `const BaseWidget = Vue.extend({...})` -> `const BaseWidget = defineComponent({...})` (Vue3-compatible, supports TS inference)
     const finalScript = replaceVueExtendInScript(newScript)
 
+    // [DBG-COMPO-IMPORT] dump finalScript's first 600 chars
+    if (process.env.DBG_COMPO_IMPORT && /headTop|login|adminSet|tendency|visitorPie/.test(ctx.file.path)) {
+      console.log(`[DBG-COMPO-IMPORT] ${ctx.file.path}\n--- newScript (first 800 chars) ---\n${newScript.slice(0, 800)}\n--- finalScript (first 800 chars) ---\n${finalScript.slice(0, 800)}\n--- scriptInner (first 600 chars) ---\n${scriptInner.slice(0, 600)}\n--- end ---`)
+    }
+
     // 6. replace script in file.source
     ctx.file.source =
       source.substring(0, scriptOpenStart) +
@@ -142,6 +153,27 @@ interface ExportMatch {
   end: number
   objStart: number
   objEnd: number
+}
+
+/**
+ * Re-derive sfc.script.loc and .content from current file.source.
+ * Earlier plugins (elementui icon, vxe-table, etc.) may have inserted imports
+ * into file.source via `file.source = ...` without syncing sfc loc offsets,
+ * leaving sfc.script.loc stale. Recompute by regex so this plugin always
+ * sees the correct script-block range.
+ */
+function resyncScriptLoc(file: any): void {
+  if (!file?.sfc?.script) return
+  const source: string = file.source
+  const scriptOpenMatch = source.match(/<script\b[^>]*>/i)
+  if (!scriptOpenMatch || scriptOpenMatch.index === undefined) return
+  const scriptOpenIdx = scriptOpenMatch.index
+  const scriptOpenEnd = scriptOpenIdx + scriptOpenMatch[0].length
+  const scriptCloseIdx = source.indexOf('</script>', scriptOpenEnd)
+  if (scriptCloseIdx < 0) return
+  file.sfc.script.loc.start.offset = scriptOpenEnd
+  file.sfc.script.loc.end.offset = scriptCloseIdx
+  file.sfc.script.content = source.slice(scriptOpenEnd, scriptCloseIdx)
 }
 
 function findExportDefaultBlock(scriptText: string): ExportMatch | null {

@@ -13,10 +13,33 @@ dist-publish/
 # Debug / scratch (kept locally for diagnostics, not for source control)
 _dbg/
 _dbg2/
+_dbg3/
 _trash/
 _old_*/
+_old_222*/
+_old_222_*/
+_old_222_*/
 .worktrees/
 *.bak
+
+# Local transform verification outputs (created by `vue-migrate transform --only-changed`)
+# Pattern: examples/_verify_*, examples/_test_*, examples/_dbg_*, examples/_v0*, examples/_final_*, examples/_build_verify
+/examples/_verify_*/
+/examples/_test_*/
+/examples/_dbg_*/
+/examples/_v0*/
+/examples/_final_*/
+/examples/_final_ve_*/
+/examples/_build_verify/
+/examples/222_legacy_*/
+/examples/ve-admin-test.zip
+/_dbg_gen.mjs
+/_dbg_gen2.mjs
+/_full_log.txt
+/_reviews.txt
+/packages/cli/probe-*.mjs
+/packages/core/_dbg_*.mjs
+/packages/plugins/composition/test_dbg*.cjs
 
 # Editor / OS
 Thumbs.db

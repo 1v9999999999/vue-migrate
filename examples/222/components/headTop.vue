@@ -6,7 +6,7 @@
 			<el-breadcrumb-item v-for="(item, index) in route.meta" :key="index">{{item}}</el-breadcrumb-item>
 		</el-breadcrumb>
 		<el-dropdown @command="handleCommand" menu-align='start'>
-			<img :src="baseImgPath + store.adminInfo.avatar" class="avator">
+			<img :src="baseImgPathData + store.adminInfo.avatar" class="avator">
 			<template #dropdown>
 			    <el-dropdown-menu>
     				<el-dropdown-item command="home">首页</el-dropdown-item>
@@ -18,42 +18,56 @@
 </template>
 
 <script setup>
-import {signout} from '@/api/getData'
-	import {baseImgPath} from '@/config/env'
-	import {mapActions, mapState} from 'vuex'
-import { useRouter } from 'vue-router'
-import { useStore } from 'vuex'
-import { ElMessage } from 'element-plus'
+import { signout } from '@/api/getData';
 
-const store = useStore()
-// TODO: 迁移到 Pinia (useXxxStore)；暂时用 Vuex useStore()
+import { baseImgPath } from '@/config/env';
+
+import { ElMessage } from "element-plus";
+
+import { useRoute } from 'vue-router';
+
+import { useRouter } from 'vue-router';
+
+import { useAppStore } from '@/store';
+
+
+import { computed, ref } from 'vue';
+
+
+const baseImgPathData = ref(baseImgPath)
+
+const adminInfo = computed(() => useAppStore().adminInfo)
+
+const getAdminData = (...args) => useAppStore().getAdminData(...args)
+
+const route = useRoute()
 const router = useRouter()
-
+// --- created() inline ---
+  if (!adminInfo.value.id) {
+    getAdminData();
+  }
 async function handleCommand(command) {
-  if (command == 'home') {
-  	router.push('/manage');
-  }else if(command == 'signout'){
-  	const res = await signout()
-  	if (res.status == 1) {
-  		ElMessage({
-                       type: 'success',
-                       message: '退出成功'
-                   });
-                   router.push('/');
-  	}else{
-  		ElMessage({
-                       type: 'error',
-                       message: res.message
-                   });
-  	}
+    if (command == 'home') {
+    router.push('/manage');
+  } else if (command == 'signout') {
+    const res = await signout();
+    if (res.status == 1) {
+      ElMessage({
+        type: 'success',
+        message: '退出成功'
+      });
+      router.push('/');
+    } else {
+      ElMessage({
+        type: 'error',
+        message: res.message
+      });
+    }
   }
 }
 
-// --- created() inline ---
-if (!store.adminInfo.id) {
-	store.dispatch('getAdminData')
-}
 
+;
 </script>
 
 <style lang="less">

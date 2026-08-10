@@ -25,84 +25,103 @@
 </template>
 
 <script setup>
-import {login, getAdminInfo} from '@/api/getData'
-	import {mapActions, mapState} from 'vuex'
-import { useRouter } from 'vue-router'
-import { useStore } from 'vuex'
-import { ElMessage } from 'element-plus'
-import { ElNotification } from 'element-plus'
+import { login } from '@/api/getData';
 
-import { onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage, ElNotification } from "element-plus";
 
-const loginForm = reactive<object>({
+import { useRouter } from 'vue-router';
+
+import { useAppStore } from '@/store';
+
+
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+
+
+const loginForm = reactive({
   username: '',
-  password: '',
+  password: ''
 })
-const rules = reactive<object>({
-  username: [
-            { required: true, message: '请输入用户名', trigger: 'blur' },
-        ],
-  password: [
-   { required: true, message: '请输入密码', trigger: 'blur' }
-  ],
+const rules = reactive({
+  username: [{
+    required: true,
+    message: '请输入用户名',
+    trigger: 'blur'
+  }],
+  password: [{
+    required: true,
+    message: '请输入密码',
+    trigger: 'blur'
+  }]
 })
-const showLogin = ref<boolean>(false)
+const showLogin = ref(false)
 
-const loginFormRef = ref<any>(null)
+const loginFormRef = ref(null)
 
-const store = useStore()
-// TODO: 迁移到 Pinia (useXxxStore)；暂时用 Vuex useStore()
+const adminInfo = computed(() => useAppStore().adminInfo)
+
+const getAdminData = (...args) => useAppStore().getAdminData(...args)
+
+const __refsMap = {
+  loginFormRef: loginFormRef,
+  loginForm: loginFormRef
+}
+
 const router = useRouter()
-
-watch(() => store.adminInfo, (newValue) => {
-    if (newValue.id) {
-    	ElMessage({
-                        type: 'success',
-                        message: '检测到您之前登录过，将自动登录'
-                    });
-    	router.push('manage')
-    }
-})
-
 async function submitForm(formName) {
-  (__refsMap[formName] as any)?.value.validate(async (valid) => {
-  	if (valid) {
-  		const res = await login({user_name: loginForm.username, password: loginForm.password})
-  		if (res.status == 1) {
-  			ElMessage({
-                        type: 'success',
-                        message: '登录成功'
-                    });
-  			router.push('manage')
-  		}else{
-  			ElMessage({
-                        type: 'error',
-                        message: res.message
-                    });
-  		}
-  	} else {
-  		ElNotification.error({
-  			title: '错误',
-  			message: '请输入正确的用户名密码',
-  			offset: 100
-  		});
-  		return false;
-  	}
+    __refsMap[formName]?.value.validate(
+  /*
+   * vue3-types TODO:
+   * 
+   *   - $router ×1: router → useRouter()  (vue-router@4)
+   */
+  async valid => {
+    if (valid) {
+      const res = await login({
+        user_name: loginForm.username,
+        password: loginForm.password
+      });
+      if (res.status == 1) {
+        ElMessage({
+          type: 'success',
+          message: '登录成功'
+        });
+        router.push('manage');
+      } else {
+        ElMessage({
+          type: 'error',
+          message: res.message
+        });
+      }
+    } else {
+      ElNotification({
+        type: "error",
+        title: '错误',
+        message: '请输入正确的用户名密码',
+        offset: 100
+      });
+      return false;
+    }
   });
 }
 
+watch(() => adminInfo.value, (newValue) => {
+    if (newValue.id) {
+    ElMessage({
+      type: 'success',
+      message: '检测到您之前登录过，将自动登录'
+    });
+    router.push('manage');
+  }
+})
+
 onMounted(() => {
-  showLogin.value = true;
-  if (!store.adminInfo.id) {
-   			store.dispatch('getAdminData')
-   		}
-});
+    showLogin.value = true;
+  if (!adminInfo.value.id) {
+    getAdminData();
+  }
+})
 
-// 动态 ref 映射：this.$refs[原名] → __refsMap[原名]?.value
-const __refsMap: Record<string, any> = {
-  loginForm: loginFormRef,
-}
-
+;
 </script>
 
 <style lang="less" scoped>

@@ -5,26 +5,26 @@
         <div class="admin_set">
             <ul>
                 <li>
-                    <span>姓名：</span><span>{{adminInfo.user_name}}</span>
+                    <span>姓名：</span><span>{{store.adminInfo.user_name}}</span>
                 </li>
                 <li>
-                    <span>注册时间：</span><span>{{adminInfo.create_time}}</span>
+                    <span>注册时间：</span><span>{{store.adminInfo.create_time}}</span>
                 </li>
                 <li>
-                    <span>管理员权限：</span><span>{{adminInfo.admin}}</span>
+                    <span>管理员权限：</span><span>{{store.adminInfo.admin}}</span>
                 </li>
                 <li>
-                    <span>管理员 ID：</span><span>{{adminInfo.id}}</span>
+                    <span>管理员 ID：</span><span>{{store.adminInfo.id}}</span>
                 </li>
                 <li>
                     <span>更换头像：</span>
                     <el-upload
                       class="avatar-uploader"
-                      :action="baseUrl + '/admin/update/avatar/' + adminInfo.id"
+                      :action="baseUrlData + '/admin/update/avatar/' + store.adminInfo.id"
                       :show-file-list="false"
                       :on-success="uploadImg"
                       :before-upload="beforeImgUpload">
-                      <img v-if="adminInfo.avatar" :src="baseImgPath + adminInfo.avatar" class="avatar">
+                      <img v-if="store.adminInfo.avatar" :src="baseImgPathData + store.adminInfo.avatar" class="avatar">
                       <el-icon class="avatar-uploader-icon" v-else ><Plus /></el-icon>
                     </el-upload>
                 </li>    
@@ -34,36 +34,46 @@
 </template>
 
 <script setup>
-import headTop from '../components/headTop'
-    import {mapState} from 'vuex'
-    import {baseUrl, baseImgPath} from '@/config/env'
-import { useStore } from 'vuex'
-import { ElMessage } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue';
 
-const store = useStore()
-// TODO: 迁移到 Pinia (useXxxStore)；暂时用 Vuex useStore()
+import headTop from '../components/headTop';
+
+import { baseUrl, baseImgPath } from '@/config/env';
+
+import { ElMessage } from "element-plus";
+
+import { useAppStore } from '@/store';
+
+
+import { computed, ref } from 'vue';
+
+
+const baseUrlData = ref(baseUrl)
+const baseImgPathData = ref(baseImgPath)
+
+const adminInfo = computed(() => useAppStore().adminInfo)
 
 function uploadImg(res, file) {
-  if (res.status == 1) {
-      store.adminInfo.avatar = res.image_path;
-  }else{
-      ElMessage.error('上传图片失败！');
+    if (res.status == 1) {
+    adminInfo.value.avatar = res.image_path;
+  } else {
+    ElMessage.error('上传图片失败！');
   }
 }
-
 function beforeImgUpload(file) {
-                  const isRightType = (file.type === 'image/jpeg') || (file.type === 'image/png');
-                  const isLt2M = file.size / 1024 / 1024 < 2;
-
-                  if (!isRightType) {
-                      ElMessage.error('上传头像图片只能是 JPG 格式!');
-                  }
-                  if (!isLt2M) {
-                      ElMessage.error('上传头像图片大小不能超过 2MB!');
-                  }
-                  return isRightType && isLt2M;
+    const isRightType = file.type === 'image/jpeg' || file.type === 'image/png';
+  const isLt2M = file.size / 1024 / 1024 < 2;
+  if (!isRightType) {
+    ElMessage.error('上传头像图片只能是 JPG 格式!');
+  }
+  if (!isLt2M) {
+    ElMessage.error('上传头像图片大小不能超过 2MB!');
+  }
+  return isRightType && isLt2M;
 }
 
+
+;
 </script>
 
 <style lang="less">
