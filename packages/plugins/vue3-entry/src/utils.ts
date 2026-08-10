@@ -185,3 +185,154 @@ export function getTopLevelStatementPath(path: any): any | null {
   }
   return null
 }
+
+// =====================================================================
+// iter-044 B4 / B5: entry-file Vite/ESM adaptations
+// =====================================================================
+
+/**
+ * iter-044 B4: `process.env.NODE_ENV` → `import.meta.env.MODE`
+ *
+ * Vite 不暴露 `process.env.NODE_ENV` (因为是 ESM,没有 process global);
+ * 应用 `import.meta.env.MODE` ('development' | 'production' | 'test' | 自定义)
+ * 或 `import.meta.env.PROD` (boolean). 这里统一改 `import.meta.env.MODE` — 与原值语义最接近。
+ *
+ * 同时处理 computed 形式: `process.env['NODE_ENV']`。
+ *
+ * @returns { count, changes } - 替换次数 + 描述列表
+ */
+export function rewriteProcessEnvNodeEnv(
+  ast: t.File,
+  markChanged: (msg: string) => void,
+): { count: number; changes: string[] } {
+  const changes: string[] = []
+  let count = 0
+  traverse(ast, {
+    MemberExpression(path: any) {
+      const node = path.node
+      if (
+        !t.isMemberExpression(node.object) ||
+        !t.isIdentifier(node.object.object, { name: 'process' }) ||
+        !t.isIdentifier(node.object.property, { name: 'env' })
+      ) {
+        return
+      }
+      const isNodeEnv =
+        (!node.computed && t.isIdentifier(node.property, { name: 'NODE_ENV' })) ||
+        (node.computed && t.isStringLiteral(node.property, { value: 'NODE_ENV' }))
+      if (!isNodeEnv) return
+      // 替换: process.env.NODE_ENV → import.meta.env.MODE
+      path.replaceWith(
+        t.memberExpression(
+          t.memberExpression(
+            t.memberExpression(t.identifier('import'), t.identifier('meta')),
+            t.identifier('env'),
+          ),
+          t.identifier('MODE'),
+        ),
+      )
+      count++
+      changes.push('process.env.NODE_ENV → import.meta.env.MODE')
+    },
+  })
+  if (count > 0) markChanged(`[B4] process.env.NODE_ENV → import.meta.env.MODE (${count} 处)`)
+  return { count, changes }
+}
+
+/**
+ * iter-044 B5: `require(x)` → `await import(x)`,并把外层 if-body 包成 async IIFE
+ *
+ * Vite 没有 CommonJS require。改写策略:
+ *   1. `require(x)` → `await import(x)`
+ *   2. 如果 require 在某个顶层 if-statement 的 body 内,把整个 body 包成
+ *      `(async () => { ... })()` (IIFE),让 await 合法
+ *   3. `require.context` / `require.x(...)` 复杂形式,标 manual review 不动
+ *
+ * @returns { count, reviews, changes } - 替换次数 + 标 review 的内容 + 描述
+ */
+export function rewriteRequireToImport(
+  ast: t.File,
+  markChanged: (msg: string) => void,
+  manualReview: (msg: string) => void,
+  generateCode: (node: t.Node) => string,
+): { count: number; reviews: string[]; changes: string[] } {
+  const reviews: string[] = []
+  const changes: string[] = []
+  let count = 0
+
+  const requirePaths: any[] = []
+  traverse(ast, {
+    CallExpression(path: any) {
+      const node = path.node
+      // 1) `require.context(...)` 形式 — callee 是 MemberExpression(Identifier('require'), Identifier('context'))
+      if (
+        t.isMemberExpression(node.callee) &&
+        t.isIdentifier(node.callee.object, { name: 'require' }) &&
+        t.isIdentifier(node.callee.property)
+      ) {
+        const sub = node.callee.property.name
+        manualReview(
+          `[iter-044 B5] require.${sub}(...) 是 webpack 专属 API,Vite 没有等价品,请手动处理 (位置: ${generateCode(node)})`,
+        )
+        reviews.push(`require.${sub} at ${generateCode(node)}`)
+        return
+      }
+      // 2) `require(x)` 简单形式
+      if (
+        t.isIdentifier(node.callee, { name: 'require' }) &&
+        node.arguments.length === 1
+      ) {
+        const arg = node.arguments[0]
+        if (t.isMemberExpression(arg)) {
+          manualReview(
+            `[iter-044 B5] require(${generateCode(arg)}) 形式复杂,未自动处理,请手动转为 import (位置: ${generateCode(node)})`,
+          )
+          reviews.push(`require.x at ${generateCode(node)}`)
+          return
+        }
+        requirePaths.push(path)
+      }
+    },
+  })
+
+  // 替换 require(x) → await import(x)
+  for (const p of requirePaths) {
+    const arg = p.node.arguments[0]
+    p.replaceWith(
+      t.awaitExpression(
+        t.callExpression(t.identifier('import'), [arg]),
+      ),
+    )
+    count++
+  }
+  if (count > 0) {
+    markChanged(`[B5] require() → await import() (${count} 处)`)
+    changes.push(`require() → await import() (${count} 处)`)
+  }
+
+  // 把外层 if-body 包成 async IIFE
+  const wrappedIfs = new Set<any>()
+  for (const p of requirePaths) {
+    let cur: any = p.parentPath
+    while (cur && !cur.isProgram()) {
+      if (cur.isIfStatement() && cur.parentPath?.isProgram()) {
+        if (wrappedIfs.has(cur)) break
+        wrappedIfs.add(cur)
+        const body = cur.node.consequent
+        if (t.isBlockStatement(body)) {
+          const iife = t.callExpression(
+            t.arrowFunctionExpression([], body, true),
+            [],
+          )
+          cur.node.consequent = t.blockStatement([t.expressionStatement(iife)])
+          markChanged('[B5] if-body 包含 require() → 用 async IIFE 包裹')
+          changes.push('if-body 用 async IIFE 包裹')
+        }
+        break
+      }
+      cur = cur.parentPath
+    }
+  }
+
+  return { count, reviews, changes }
+}

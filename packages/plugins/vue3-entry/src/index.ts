@@ -31,7 +31,14 @@ import _traverse from '@babel/traverse'
 import _generate from '@babel/generator'
 import type { TransformPlugin, TransformContext } from '@vue-migrate/core'
 import { getMainStoreExportName } from '@vue-migrate/core'  // iter-046: P0-B fix - use real main store name
-import { isVueStaticMember, getVueChainAssignment, ensureVueImport, removeVueDefaultImportIfUnused } from './utils.js'
+import {
+  isVueStaticMember,
+  getVueChainAssignment,
+  ensureVueImport,
+  removeVueDefaultImportIfUnused,
+  rewriteProcessEnvNodeEnv,
+  rewriteRequireToImport,
+} from './utils.js'
 
 // ESM-safe: babel parser/traverse/generator may have .default or not depending on entry
 const _traverseObj: any = (_traverse as any)
@@ -124,6 +131,17 @@ function _runEntryTransform(ctx) {
     const isEntry = isEntryByName || isEntryByContent
 
     if (!isEntry) return
+
+    // ========== iter-044 B4: process.env.NODE_ENV → import.meta.env.MODE ==========
+    rewriteProcessEnvNodeEnv(file.scriptAst, utils.markChanged)
+
+    // ========== iter-044 B5: require(x) → await import(x) + IIFE 包裹 ==========
+    rewriteRequireToImport(
+      file.scriptAst,
+      utils.markChanged,
+      utils.manualReview,
+      (n) => _generateFn(n).code,
+    )
 
     // ----- 3. Find the entry chain: new Vue({...}).$mount('#app') -----
     interface EntryChain {

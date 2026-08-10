@@ -38,6 +38,8 @@ import {
   type TransformPlugin,
   type TransformContext,
 } from '@vue-migrate/core'
+import _traverse from '@babel/traverse'
+import * as _t from '@babel/types'
 import {
   collectElementUIImports,
   renameDefaultLocalName,
@@ -51,6 +53,9 @@ import {
 } from './rules/global-methods.js'
 import { applyTemplateTransform } from './rules/template.js'
 import { applyIconTransform } from './rules/icon.js'
+
+// @ts-ignore — @babel/traverse default export interop
+const traverse = (_traverse as any).default || _traverse
 
 const plugin: TransformPlugin = {
   name: 'elementui',
@@ -67,6 +72,26 @@ const plugin: TransformPlugin = {
     if (ctx.file.source.length > 50000 && !ctx.file.path.endsWith('.vue')) {
       // large file (>50KB) and not .vue, almost certainly bundled
       return
+    }
+
+    // ========== 0. iter-044 B3: element-variables.scss 检测 ==========
+    // Element UI 时代的 SCSS 变量覆盖文件 (常见路径: ./styles/element-variables.scss)
+    // Element Plus 走 CSS variables,这文件大多无意义 — 但用户可能有自己的覆盖,
+    // 标 review 提示用户处理,不自动删。
+    if (ctx.file.scriptAst) {
+      traverse(ctx.file.scriptAst, {
+        ImportDeclaration(path: any) {
+          const node = path.node
+          if (!_t.isStringLiteral(node.source)) return
+          const src = node.source.value
+          // 匹配 element-variables / element-variable 之类命名（用户可能多个)
+          if (/element[-_]variables?/i.test(src)) {
+            ctx.utils.manualReview(
+              `[iter-044 B3] 检测到 '${src}' — Element UI SCSS 变量覆盖文件,Element Plus 走 CSS variables 这类文件大多不再需要。若该文件含项目自定义变量,请用 Element Plus 的 CSS 变量机制重新声明。`,
+            )
+          }
+        },
+      })
     }
 
     // ========== 1. Script AST: import + this.$xxx replacement ==========

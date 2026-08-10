@@ -230,6 +230,48 @@ console.log('\n[applyScriptMap]')
   assertEq('无改动', r.changes, [])
 }
 
+// 8) B1: build --mode staging 保留 args
+{
+  const r = applyScriptMap({ 'build:stage': 'vue-cli-service build --mode staging' })
+  assertEq('build:stage 保留 --mode staging', r.scripts, { 'build:stage': 'vite build --mode staging' })
+  assertTrue('记录 1 项改动', r.changes.length === 1)
+  assertTrue('描述含 build --mode staging', r.changes[0]?.includes('build:stage'))
+}
+
+// 9) B1: 复合命令 jest --clearCache && vue-cli-service test:unit
+{
+  const r = applyScriptMap({ 'test:unit': 'jest --clearCache && vue-cli-service test:unit' })
+  assertEq('test:unit 复合命令替换', r.scripts, { 'test:unit': 'jest --clearCache && vitest run' })
+  assertTrue('记录 1 项改动', r.changes.length === 1)
+}
+
+// 10) B1: 三段命令
+{
+  const r = applyScriptMap({ 'test:ci': 'npm run lint && vue-cli-service test:unit && echo done' })
+  assertEq('三段命令替换', r.scripts, { 'test:ci': 'npm run lint && vitest run && echo done' })
+  assertTrue('记录 1 项改动', r.changes.length === 1)
+}
+
+// 11) B1: vue-cli-service serve 后面带 --port
+{
+  const r = applyScriptMap({ 'dev': 'vue-cli-service serve --port 8080' })
+  assertEq('serve 保留 --port', r.scripts, { 'dev': 'vite --port 8080' })
+}
+
+// 12) B1: 长前缀 my-vue-cli-service 不误匹配
+{
+  const r = applyScriptMap({ 'custom': 'my-vue-cli-service serve' })
+  assertEq('长前缀不误匹配', r.scripts, { 'custom': 'my-vue-cli-service serve' })
+  assertEq('无改动', r.changes, [])
+}
+
+// 13) B1: 未知 subcmd 原样保留
+{
+  const r = applyScriptMap({ 'foo': 'vue-cli-service some-unknown-cmd --flag' })
+  assertEq('未知 subcmd 保留', r.scripts, { 'foo': 'vue-cli-service some-unknown-cmd --flag' })
+  assertEq('无改动', r.changes, [])
+}
+
 // ============ 总结 ============
 console.log(`\ntests ${pass + fail} pass ${pass} fail ${fail}`)
 if (fail > 0) {
