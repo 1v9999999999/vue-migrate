@@ -73,10 +73,6 @@ export function rewriteSlots(template: string): SlotRewriteResult {
     const slotAttr = findAttr(el, 'slot')
     const scopeAttr = findAttr(el, 'slot-scope')
 
-    // 检查是否带 v-for 等冲突 —— v-for 不能直接套在 <template> 上以外
-    // 实际上 <template v-for> 是合法的，所以这里只警告 v-if 同节点的情况
-    // 暂时不处理
-
     const slotName = slotAttr?.value
     const scopeName = scopeAttr?.value
 
@@ -93,6 +89,25 @@ export function rewriteSlots(template: string): SlotRewriteResult {
         : 'default'
     const finalScopeName =
       typeof scopeName === 'string' ? scopeName : null
+
+    // 特殊路径：原元素是 <template> 时，不要再包一层
+    // 直接把 slot / slot-scope 属性改写为 #xxx=... 即可
+    if (el.tagName === 'template') {
+      const newOpen = buildTemplateOpenTag(
+        el,
+        template,
+        finalSlotName,
+        finalScopeName,
+      )
+      // 只替换 open tag 文本（openStart..openEnd+1），不碰 close tag
+      out = out.slice(0, el.openStart) + newOpen + out.slice(el.openEnd + 1)
+      const desc =
+        `<template slot="${finalSlotName}"` +
+        (finalScopeName ? ` slot-scope="${finalScopeName}"` : '') +
+        ' → <template #' + finalSlotName + (finalScopeName ? `="${finalScopeName}"` : '') + '>'
+      changes.push(desc)
+      continue
+    }
 
     // 1. 重构内层元素：去掉 slot / slot-scope 属性
     const parts = rebuildElementParts(el, template)
@@ -127,6 +142,35 @@ export function rewriteSlots(template: string): SlotRewriteResult {
     changes,
     reviewItems,
   }
+}
+
+/**
+ * 重写 <template> 的 open tag：
+ *   - 去掉 slot / slot-scope 属性
+ *   - 加上 #slotName[=scope] 作为 v-slot 指令
+ *   - 保留其它属性（如 v-if / v-for）
+ */
+function buildTemplateOpenTag(
+  el: ElementMatch,
+  template: string,
+  slotName: string,
+  scopeName: string | null,
+): string {
+  const tagName = template.slice(el.tagNameStart, el.tagNameEnd)
+  // 保留除 slot / slot-scope 之外的属性
+  const kept = el.attrs.filter((a) => a.name !== 'slot' && a.name !== 'slot-scope')
+  // 重新构造 attrText
+  const attrText = template.slice(el.tagNameEnd, el.openEnd)
+  let newAttrText = ''
+  let cursor = 0
+  for (const a of kept) {
+    if (a.start > cursor) newAttrText += attrText.slice(cursor, a.start)
+    newAttrText += a.raw
+    cursor = a.end
+  }
+  // 加 v-slot 指令：#slotName=scope
+  const vslotAttr = scopeName ? ` #${slotName}="${scopeName}"` : ` #${slotName}`
+  return `<${tagName}${newAttrText}${vslotAttr}>`
 }
 
 /**

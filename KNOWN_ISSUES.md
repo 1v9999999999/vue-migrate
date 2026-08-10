@@ -146,6 +146,38 @@
 | B30 | `vue3-entry` 运行时 symlink 缺失 | iter-027 | node_modules/@vue-migrate |
 | B31 | `(prop as any).value` 解决 ObjectMethod 联合类型 | iter-027 | 多处 |
 | B32 | `vue3-entry` rewrite 后 review 数从 0 → 486 (实质改进: 之前 plugin 根本没跑) | iter-027 | vue3-entry |
+| B33 | `<template slot-scope=...>` 被重写时再包一层 `<template>`，产生双层 template | iter-028 | vue3-template/slot-rewriting |
+| B34 | vue3-entry 在源码已 `new Vue → createApp` 转换后 isEntryByContent 检测失败 | iter-028 | vue3-entry |
+| B35 | vue3-entry 缺 `registerPlugin(plugin)` 调用 (rewrite 时漏写) | iter-028 | vue3-entry/index |
+| B36 | vue3-entry 调 `mount('##app')` 多了个 `#` (log 字符串硬编码) | iter-028 | vue3-entry |
+| B37 | vue2-compat 重复 push 'createApp' 到 import (GBK 时期遗留) | iter-028 | vue2-compat |
+| B38 | vue2-compat 重复声明 `ObjectProperty` visitor (rename bug 留痕) | iter-028 | vue2-compat |
+
+## iter-028 highlights
+
+### vue3-entry rewrite (功能补完)
+- Auto-chain `Vue.use/component/directive/mixin` to `createApp().use()...` chain
+- Auto-fix `Vue.prototype.$x = val` → `app.config.globalProperties.$x = val` (inserted before `.mount()`)
+- Auto-remove `Vue.config.productionTip/devtools/silent` (silent drop, no review)
+- Auto-convert `Vue.config.ignoredElements = [...]` → `app.config.compilerOptions.isCustomElement = (tag) => [...].includes(tag)`
+- Auto-remove `Vue.filter()` (Vue3 has no filter)
+- Auto-remove `Vue.compile/nextTick/set/delete/version` (silently)
+
+### vue3-template/slot-rewriting (B33 修复)
+- `<template slot-scope="...">` 现在原地改写为 `<template #default="...">`，不再双层 wrap
+- 保留其它属性（v-for, v-if 等）
+- 新增 4 个测试用例覆盖各种 `<template>` 形式
+- 8/8 slot 测试通过
+
+### iter-028b state
+| Metric | iter-027b | iter-028 |
+|---|---|---|
+| compileOk | 0.988 | 0.988 |
+| astEquivalent | 0.649 | 0.649 |
+| semanticDiff | 0.678 | 0.742 |
+| runtimeSafe | 0.844 | 0.884 |
+| totalReviewDelta | 486 | 540 |
+| totalFiles | 232 | 232 |
 
 ## iter-027 final state
 

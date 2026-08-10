@@ -144,20 +144,14 @@ if (propName === 'compile') { utils.manualReview(
       },
 
       // ========== 1.4 / 1.5 beforeDestroy/destroyed → beforeUnmount/unmounted ==========
+      // ========== 5.2 functional: true ==========
       ObjectMethod(path: any) {
         handleLifecycleHookRename(path.node, utils)
       },
       ObjectProperty(path: any) {
-        // 兜底
+        // 1.4 / 1.5 兜底
         handleLifecycleHookRename(path.node, utils)
-      },
-
-      // ========== 2.3 filters: {...} 选项识别（移除 + review） ==========
-      // 注意：vue3-directives 也会做类似的事，这里不重复
-      // 我们跳过 —— 由 vue3-directives 的 filters-option 处理
-
-      // ========== 5.2 functional: true ==========
-      FunctionalProperty(path: any) {
+        // 5.2 functional: true
         const node = path.node
         if (
           t.isIdentifier(node.key, { name: 'functional' }) &&
@@ -200,7 +194,6 @@ if (propName === 'compile') { utils.manualReview(
     if (needsDefineComponent || needsCreateApp) {
       const toAdd: string[] = []
       if (needsDefineComponent) toAdd.push('defineComponent')
-      if (needsCreateApp) toAdd.push('createApp')
       if (needsCreateApp) toAdd.push('createApp')
       ensureVueImport(file, toAdd)
     }

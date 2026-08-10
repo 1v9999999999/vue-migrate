@@ -70,6 +70,62 @@ const cases: Array<{ name: string; input: string; expected: string }> = [
   </template>
 </my-card>`,
   },
+  {
+    name: '<template slot-scope=...> rewritten in place (NOT wrapped)',
+    input: `<el-table-column type="expand">
+  <template slot-scope="props">
+    <el-form>
+      <el-form-item label="A"><span>{{ props.row.name }}</span></el-form-item>
+    </el-form>
+  </template>
+</el-table-column>`,
+    expected: `<el-table-column type="expand">
+  <template #default="props">
+    <el-form>
+      <el-form-item label="A"><span>{{ props.row.name }}</span></el-form-item>
+    </el-form>
+  </template>
+</el-table-column>`,
+  },
+  {
+    name: '<template slot="xxx" slot-scope=...> rewritten in place',
+    input: `<my-list>
+  <template slot="item" slot-scope="row">
+    <span>{{ row.id }}</span>
+  </template>
+</my-list>`,
+    expected: `<my-list>
+  <template #item="row">
+    <span>{{ row.id }}</span>
+  </template>
+</my-list>`,
+  },
+  {
+    name: '<template slot="xxx"> rewritten in place (no scope)',
+    input: `<my-comp>
+  <template slot="header">
+    <h1>Title</h1>
+  </template>
+</my-comp>`,
+    expected: `<my-comp>
+  <template #header>
+    <h1>Title</h1>
+  </template>
+</my-comp>`,
+  },
+  {
+    name: '<template v-for slot-scope=...> — keep v-for, rewrite slot-scope',
+    input: `<my-list :items="items">
+  <template v-for="(item, idx) in items" slot-scope="row">
+    <span>{{ row.id }} - {{ item }}</span>
+  </template>
+</my-list>`,
+    expected: `<my-list :items="items">
+  <template v-for="(item, idx) in items" #default="row">
+    <span>{{ row.id }} - {{ item }}</span>
+  </template>
+</my-list>`,
+  },
 ]
 
 let pass = 0
