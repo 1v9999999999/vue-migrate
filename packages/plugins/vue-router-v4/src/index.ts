@@ -307,10 +307,63 @@ const historyCall =
           // iter-035: rename 避免跟后续 const 冲突
           //   原 const 可能是 'createRouter'(跟 import createRouter 冲突) 或 'router'(跟后续 const router 冲突)
           //   用不会冲突的内部名 `__routerInstance__`,让用户后续重命名
-          const newIdName = '__routerInstance__'
-          const newId = t.identifier(newIdName)
-          const newDecl = t.variableDeclarator(newId, createRouterCall)
-          grandPath!.replaceWith(newDecl)
+          //
+          // iter-044a (Bug A1): 如果 wrapper 名是 'createRouter' (跟 import 撞名), 不能用
+          //   `__routerInstance__` 中转 — 那样下游 `const router = createRouter()` 调用会变成
+          //   对 import createRouter 的无参调用, routes undefined, app 启动即崩。
+          //   修复: 整体展开 wrapper, 让 downstream `const router = createRouter()` 直接拿到
+          //   createRouter({...options}) 的真实调用结果。
+          //   - 把 `const createRouter = () => new Router({...})` 整条删掉
+          //   - 把 `const router = createRouter()` 替换为 `const router = createRouter({...options})`
+          const wrapperId = grand.id as t.Identifier
+          if (wrapperId.name === 'createRouter') {
+            // 找到 wrapper 声明 (grandPath 是 VariableDeclarator, 其 parent 是 VariableDeclaration)
+            const wrapperDeclPath = grandPath?.parentPath
+            if (wrapperDeclPath) {
+              // 1. 删掉整个 `const createRouter = () => new Router({...})` 声明
+              wrapperDeclPath.remove()
+            }
+            // 2. 找下游 `const router = createRouter()` 调用, 替换为 `const router = createRouter({...options})`
+            //    - 限定在 Program 直接子节点里找 (避免误伤嵌套 const)
+            //    - VariableDeclarator id 名为 'router' 且 init 为 createRouter() 无参调用
+            const programNode = (ctx.file.scriptAst as any).program
+            if (programNode && programNode.body) {
+              for (const stmt of programNode.body) {
+                if (
+                  t.isVariableDeclaration(stmt) &&
+                  stmt.declarations.length === 1
+                ) {
+                  const d = stmt.declarations[0]
+                  if (
+                    t.isVariableDeclarator(d) &&
+                    t.isIdentifier(d.id, { name: 'router' }) &&
+                    t.isCallExpression(d.init) &&
+                    t.isIdentifier(d.init.callee, { name: 'createRouter' }) &&
+                    d.init.arguments.length === 0
+                  ) {
+                    // 替换: const router = createRouter({...options})
+                    d.init = createRouterCall
+                    reviewItems.push(
+                      '检测到 `const createRouter = () => new Router({...})` 模式 (跟 vue-router 4 的 createRouter 撞名)，已就地展开: 删除 wrapper 并把下游 `const router = createRouter()` 替换为 `const router = createRouter({...options})`。',
+                    )
+                    break
+                  }
+                }
+              }
+            }
+            // 3. resetRouter 函数里也有 `createRouter()` 无参调用, Vue Router 4 没有 .matcher, 标 manual review
+            //    扫描 file.source 找形如 `router.matcher = xxx.matcher` 的代码
+            if (/router\.matcher\s*=/.test(ctx.file.source)) {
+              reviewItems.push(
+                '检测到 `resetRouter()` 函数使用了 Vue Router 3 的 `router.matcher = newRouter.matcher`。Vue Router 4 没有 `.matcher` 属性,需要手动改写 resetRouter (常见做法: removeRoute + addRoute 重建 routes,或保留路由实例不动)。原函数体未自动改写,运行时调用会报错。',
+              )
+            }
+          } else {
+            const newIdName = '__routerInstance__'
+            const newId = t.identifier(newIdName)
+            const newDecl = t.variableDeclarator(newId, createRouterCall)
+            grandPath!.replaceWith(newDecl)
+          }
         } else {
           path.replaceWith(createRouterCall)
         }
