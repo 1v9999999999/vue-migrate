@@ -24,18 +24,24 @@ export interface DepMapEntry {
   version?: string
   /** 是否删除原依赖 */
   remove?: boolean
+  /**
+   * manual review 提示（被附加到 changes[] 输出末尾）。
+   * 标记该依赖的升级有 breaking change 或无法自动迁移，提示用户手动检查。
+   * - 仍会升版本到 version（如有指定）
+   * - 不会自动删 / 改名
+   */
+  manualReview?: string
 }
 
 export const DEP_MAP: Record<string, DepMapEntry> = {
-  // Vue 核心
+  // ============ Vue 核心 / 路由 / 状态 / UI 库 ============
   'vue': { name: 'vue', version: '^3.4.0' },
-  // 路由
   'vue-router': { name: 'vue-router', version: '^4.2.0' },
-  // 状态管理（vuex → pinia 跨多个 entry，需 pinia 插件协同）
+  // vuex v3 与 Vue3 不兼容；当前用 pinia 替代
   'vuex': { name: 'pinia', version: '^2.1.0' },
-  // UI 库
   'element-ui': { name: 'element-plus', version: '^2.4.0' },
-  // Vue 2 时代产物
+
+  // ============ Vue 2 时代产物（删除） ============
   'vue-template-compiler': { name: '', remove: true },
   'vue-cli-plugin-element': { name: '', remove: true },
   'vue-cli-plugin-typescript': { name: '', remove: true },
@@ -43,13 +49,83 @@ export const DEP_MAP: Record<string, DepMapEntry> = {
   'vue-cli-plugin-pwa': { name: '', remove: true },
   'vue-cli-plugin-eslint': { name: '', remove: true },
   'vue-cli-plugin-unit-jest': { name: '', remove: true },
-  // @vue/cli-plugin-* 全部删除
-  // @vue/compiler-sfc 保留
+  // @vue/cli-plugin-* 通配删除
   '@vue/compiler-sfc': { name: '@vue/compiler-sfc', version: '^3.4.0' },
-  // @vue/cli-service 核心服务（被 Vite 替代）
   '@vue/cli-service': { name: '', remove: true },
-  // vue-loader
   'vue-loader': { name: 'vue-loader', version: '^17.4.0' },
+
+  // ============ 3rd-party 库升级（Vue 3 兼容） ============
+  // vuedraggable: v2 用 Vue.extend,Vue3 启动即崩 → v4 用 Composition API
+  'vuedraggable': {
+    name: 'vuedraggable',
+    version: '^4.1.0',
+    manualReview:
+      'vuedraggable v2→v4 有 API 变化：默认导出改为 named export `draggable`；原 v2 `import draggable from "vuedraggable"` 需改为 `import { draggable } from "vuedraggable"` 并设置 `componentName: "draggable"`。同时依赖 sortablejs v1.15+。',
+  },
+  // vue-count-to: v1 内部用 Vue.extend 模板字符串 → v2 改写为 Vue3 SFC
+  'vue-count-to': {
+    name: 'vue-count-to',
+    version: '^2.0.0',
+    manualReview:
+      'vue-count-to v1→v2 重写为 Vue3 SFC；组件名默认导出仍为 "CountTo"，但 props 命名/事件签名可能微调。Kanban/DndList/count-to 页面需手动验证渲染。',
+  },
+  // echarts: v4 CJS-only + 不支持 ESM `import echarts` 严格模式 → v5 原生 ESM
+  'echarts': {
+    name: 'echarts',
+    version: '^5.5.0',
+    manualReview:
+      'echarts v4→v5 是大版本升级，v5 原生 ESM；Vite 项目必须使用 `import * as echarts from "echarts"` 或具名 import；旧 `import echarts from "echarts"` 在 Vite SSR/strict 模式下会报 "default is not exported"。所有 Charts/* 和 dashboard 包装组件需检查 import 形式。',
+  },
+  // screenfull: v4 是 CJS,vite default 导入失败 → v6 原生 ESM
+  'screenfull': {
+    name: 'screenfull',
+    version: '^6.0.0',
+    manualReview:
+      'screenfull v4→v6 升级到 ESM；API 基本兼容。Screenfull/index.vue 需把 `import screenfull from "screenfull"` 改为 `import screenfull from "screenfull"`（v6 默认导出 ESM）或 `import * as screenfull from "screenfull"`。',
+  },
+  // driver.js: 0.x 老旧 → 1.x 改 API
+  'driver.js': {
+    name: 'driver.js',
+    version: '^1.3.0',
+    manualReview:
+      'driver.js 0.x→1.x API 调整：`new Driver({...})` 改为 `new Driver({ className, ...})`，`driver.defineSteps([...])` 改 `driver.setSteps([...])`。guide/index.vue 需手动适配。',
+  },
+  // tui-editor: 1.x 已弃用，官方迁移到无 Vue 包装的 @toast-ui/editor
+  'tui-editor': {
+    name: '@toast-ui/editor',
+    version: '^3.2.0',
+    manualReview:
+      'tui-editor 1.x 已停止维护；新版不再提供 Vue 包装。本自动迁移会改包名但不会自动加 Vue3 包装；markdown.vue 等需重写或换 monaco-editor / codemirror 6。',
+  },
+  // vue-splitpane: 1.0.4 是 Vue2 only，社区有 Vue3 fork
+  'vue-splitpane': {
+    name: 'vue-splitpane',
+    version: '^1.0.6',
+    manualReview:
+      'vue-splitpane 官方 1.0.4 是 Vue2 only（内部 Vue.component + slot）。社区有 1.0.6 Vue3 fork 但不保证 100% 兼容；split-pane.vue 演示页可能渲染失败，建议自实现一个简单 split-pane 组件。',
+  },
+
+  // ============ devDeps 也通过 DEP_MAP 生效（devDependencies 复用 DEP_MAP） ============
+  // @vue/test-utils: v1 配合 Vue 2 / vue-jest 4；v2 配合 Vue 3 / @vue/vue3-jest
+  '@vue/test-utils': {
+    name: '@vue/test-utils',
+    version: '^2.4.0',
+    manualReview:
+      '@vue/test-utils v1→v2 大改 API：$on/$off/$once 移除，propsData 改 props，contains 改 find().exists()。同时 jest.config.js 需把 vue-jest 改 @vue/vue3-jest。tests/unit/** 需要逐个迁移。',
+  },
+  // jest → vitest 替换
+  'jest': { name: 'vitest', version: '^1.0.0' },
+  'babel-jest': { name: 'vitest', version: '^1.0.0' },
+  'vue-jest': { name: '@vue/vue3-jest', version: '^29.0.0' },
+  // webpack 专属：删
+  'html-webpack-plugin': { name: '', remove: true },
+  'script-ext-html-webpack-plugin': { name: '', remove: true },
+  'svg-sprite-loader': { name: '', remove: true },
+  'script-loader': { name: '', remove: true },
+  'babel-plugin-dynamic-import-node': { name: '', remove: true },
+  'babel-eslint': { name: '@babel/eslint-parser', version: '^7.23.0' },
+  // path-browserify: Vite 浏览器没有 node:path，需要 polyfill
+  'path': { name: 'path-browserify', version: '^1.0.1' },
 }
 
 /** 哪些 @vue/cli-plugin-* 通配删除 */
@@ -82,6 +158,10 @@ export function applyDepMap(
         changes.push(`改 ${k}@${v} → ${m.name}@${out[m.name]}`)
       } else if (m.version && m.version !== v) {
         changes.push(`升 ${k}: ${v} → ${m.version}`)
+      }
+      // manualReview 提示：在改动后追加一个 ⚠️ 标记
+      if (m.manualReview) {
+        changes.push(`⚠ ${k}→${m.name} 需 review: ${m.manualReview}`)
       }
     } else {
       out[k] = v

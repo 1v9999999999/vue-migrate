@@ -130,6 +130,155 @@ console.log('\n[applyDepMap]')
   assertTrue('@vue/cli-service 被删', r.changes.some((c) => c.includes('@vue/cli-service')))
 }
 
+// ============ iter-045b: 3rd-party 库升级 + manualReview ============
+console.log('\n[iter-045b 3rd-party 升级]')
+
+// 9) vuedraggable 2.20.0 → 4.1.0
+{
+  const r = applyDepMap({ 'vuedraggable': '2.20.0' })
+  assertEq('vuedraggable 2.20 → ^4.1', r.deps, { 'vuedraggable': '^4.1.0' })
+  assertTrue('vuedraggable 记录升版本', r.changes.some((c) => c.includes('升 vuedraggable') && c.includes('2.20.0') && c.includes('4.1.0')))
+  assertTrue('vuedraggable 附 manualReview 提示', r.changes.some((c) => c.includes('⚠') && c.includes('vuedraggable') && c.includes('review')))
+}
+
+// 10) vue-count-to 1.0.13 → 2.x
+{
+  const r = applyDepMap({ 'vue-count-to': '1.0.13' })
+  assertEq('vue-count-to 1.0.13 → ^2.0', r.deps, { 'vue-count-to': '^2.0.0' })
+  assertTrue('vue-count-to 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('vue-count-to')))
+}
+
+// 11) echarts 4.2.1 → 5.x
+{
+  const r = applyDepMap({ 'echarts': '4.2.1' })
+  assertEq('echarts 4.2.1 → ^5.5', r.deps, { 'echarts': '^5.5.0' })
+  assertTrue('echarts 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('echarts') && c.includes('ESM')))
+}
+
+// 12) screenfull 4.2.0 → 6.x
+{
+  const r = applyDepMap({ 'screenfull': '4.2.0' })
+  assertEq('screenfull 4.2 → ^6', r.deps, { 'screenfull': '^6.0.0' })
+  assertTrue('screenfull 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('screenfull')))
+}
+
+// 13) tui-editor 1.3.3 → @toast-ui/editor 3.x (改名)
+{
+  const r = applyDepMap({ 'tui-editor': '1.3.3' })
+  assertEq('tui-editor → @toast-ui/editor ^3.2', r.deps, { '@toast-ui/editor': '^3.2.0' })
+  assertTrue('tui-editor 记录改名 + 升版本', r.changes.some((c) => c.includes('tui-editor') && c.includes('@toast-ui/editor')))
+  assertTrue('tui-editor 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('tui-editor')))
+}
+
+// 14) vue-splitpane 1.0.4 → 1.0.6 (社区 Vue3 fork)
+{
+  const r = applyDepMap({ 'vue-splitpane': '1.0.4' })
+  assertEq('vue-splitpane 1.0.4 → ^1.0.6', r.deps, { 'vue-splitpane': '^1.0.6' })
+  assertTrue('vue-splitpane 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('vue-splitpane')))
+}
+
+// 15) driver.js 0.9.5 → 1.3.0
+{
+  const r = applyDepMap({ 'driver.js': '0.9.5' })
+  assertEq('driver.js 0.9.5 → ^1.3', r.deps, { 'driver.js': '^1.3.0' })
+  assertTrue('driver.js 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('driver.js')))
+}
+
+// 16) @vue/test-utils 1.x → 2.x (devDeps 复用 DEP_MAP)
+{
+  const r = applyDevDepMap({ '@vue/test-utils': '1.0.0-beta.29', 'autoprefixer': '9.5.1' }, false)
+  assertEq('@vue/test-utils 1.x → ^2.4', r.deps, {
+    '@vue/test-utils': '^2.4.0',
+    'autoprefixer': '9.5.1',
+  })
+  assertTrue('@vue/test-utils 附 manualReview', r.changes.some((c) => c.includes('⚠') && c.includes('@vue/test-utils')))
+}
+
+// 17) path → path-browserify (Vite 浏览器需要 polyfill)
+{
+  const r = applyDepMap({ 'path': '0.12.7' })
+  assertEq('path → path-browserify', r.deps, { 'path-browserify': '^1.0.1' })
+  assertTrue('path 记录改包名', r.changes.some((c) => c.includes('path') && c.includes('path-browserify')))
+}
+
+// 18) jest / babel-jest → vitest
+{
+  const r = applyDepMap({ 'jest': '26.5.3', 'babel-jest': '26.5.3' })
+  assertEq('jest → vitest ^1.0', r.deps, { 'vitest': '^1.0.0' })
+}
+
+// 19) vue-jest → @vue/vue3-jest
+{
+  const r = applyDepMap({ 'vue-jest': '4.0.0' })
+  assertEq('vue-jest → @vue/vue3-jest', r.deps, { '@vue/vue3-jest': '^29.0.0' })
+}
+
+// 20) webpack 专属 devDeps 删除
+{
+  const r = applyDepMap({
+    'html-webpack-plugin': '4.5.0',
+    'script-ext-html-webpack-plugin': '2.1.3',
+    'svg-sprite-loader': '4.1.3',
+    'script-loader': '0.7.2',
+    'babel-plugin-dynamic-import-node': '2.3.3',
+  })
+  assertEq('webpack-only 全部删除', r.deps, {})
+  assertTrue('记录 5 个删除', r.changes.filter((c) => c.includes('移除')).length === 5)
+}
+
+// 21) babel-eslint → @babel/eslint-parser
+{
+  const r = applyDepMap({ 'babel-eslint': '10.1.0' })
+  assertEq('babel-eslint → @babel/eslint-parser', r.deps, { '@babel/eslint-parser': '^7.23.0' })
+}
+
+// 22) manualReview 提示: 多个 break 一次性输出多个 ⚠
+{
+  const r = applyDepMap({
+    'echarts': '4.2.1',
+    'vue-count-to': '1.0.13',
+    'vuedraggable': '2.20.0',
+  })
+  const reviewCount = r.changes.filter((c) => c.startsWith('⚠')).length
+  assertTrue('3 个 review 提示', reviewCount === 3)
+}
+
+// 23) 完整 vue-element-admin 风格混合场景
+{
+  const r = applyDepMap({
+    'vue': '2.6.10',
+    'vue-router': '3.0.2',
+    'vuex': '3.1.0',
+    'element-ui': '2.13.2',
+    'axios': '0.18.1',
+    'clipboard': '2.0.4',
+    'echarts': '4.2.1',
+    'vue-count-to': '1.0.13',
+    'vuedraggable': '2.20.0',
+    'screenfull': '4.2.0',
+    'tui-editor': '1.3.3',
+    'vue-splitpane': '1.0.4',
+    'driver.js': '0.9.5',
+    'sortablejs': '1.8.4',
+    'xlsx': '0.14.1',
+    'jszip': '3.2.1',
+  })
+  assertTrue('echarts 升 5.x', r.deps['echarts'] === '^5.5.0')
+  assertTrue('vue-count-to 升 2.x', r.deps['vue-count-to'] === '^2.0.0')
+  assertTrue('vuedraggable 升 4.x', r.deps['vuedraggable'] === '^4.1.0')
+  assertTrue('screenfull 升 6.x', r.deps['screenfull'] === '^6.0.0')
+  assertTrue('tui-editor 改名 @toast-ui/editor', r.deps['tui-editor'] === undefined && r.deps['@toast-ui/editor'] === '^3.2.0')
+  assertTrue('vue-splitpane 升 1.0.6', r.deps['vue-splitpane'] === '^1.0.6')
+  assertTrue('driver.js 升 1.3', r.deps['driver.js'] === '^1.3.0')
+  assertTrue('axios 0.18.1 保留', r.deps['axios'] === '0.18.1')
+  assertTrue('clipboard 2.0.4 保留', r.deps['clipboard'] === '2.0.4')
+  assertTrue('sortablejs 1.8.4 保留', r.deps['sortablejs'] === '1.8.4')
+  assertTrue('xlsx 0.14.1 保留', r.deps['xlsx'] === '0.14.1')
+  // 至少 7 个 manualReview 提示
+  const reviewCount = r.changes.filter((c) => c.startsWith('⚠')).length
+  assertTrue('完整场景 7+ 个 review 提示', reviewCount >= 7)
+}
+
 // ============ applyDevDepMap ============
 console.log('\n[applyDevDepMap]')
 
