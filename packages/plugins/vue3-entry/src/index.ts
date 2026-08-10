@@ -112,9 +112,11 @@ const plugin: TransformPlugin = {
     traverse(file.scriptAst, {
       CallExpression(path: any) {
         const node = path.node
+        // iter-032: 同时认 `.$mount(` (vue2) 和 `.mount(` (vue3 / 已被 vue2-compat 转换)
         if (
           t.isMemberExpression(node.callee) &&
-          t.isIdentifier(node.callee.property, { name: '$mount' }) &&
+          (t.isIdentifier(node.callee.property, { name: '$mount' }) ||
+            t.isIdentifier(node.callee.property, { name: 'mount' })) &&
           t.isCallExpression(node.callee.object) &&
           node.arguments[0] &&
           t.isStringLiteral(node.arguments[0])

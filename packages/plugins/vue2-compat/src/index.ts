@@ -118,21 +118,65 @@ if (propName === 'compile') { utils.manualReview(
             t.callExpression(t.identifier('defineComponent'), [optionsArg]),
           ])
           // .mount('#app') 在父级有则保留
+          // parent 是 MemberExpression (new Vue({...}).$mount),其 object 是 NewExpression (new Vue({...}))
           const parent = path.parent
+          // 检测 el 选项 (iter-032) — 用于 new Vue({el: '#app'}) 简写模式
+          const elPropIdx = optionsArg.properties.findIndex(
+            (p: any) =>
+              t.isObjectProperty(p) && t.isIdentifier((p as t.ObjectProperty).key, { name: 'el' }),
+          )
+          let elMountArg: t.StringLiteral | null = null
+          let elRemoveIdx = -1
+          if (elPropIdx >= 0) {
+            const elNode = optionsArg.properties[elPropIdx] as t.ObjectProperty
+            if (t.isStringLiteral(elNode.value)) {
+              elMountArg = elNode.value
+              elRemoveIdx = elPropIdx
+            } else if (
+              t.isTemplateLiteral(elNode.value) &&
+              elNode.value.expressions.length === 0 &&
+              elNode.value.quasis.length === 1
+            ) {
+              elMountArg = t.stringLiteral(elNode.value.quasis[0].value.cooked || '')
+              elRemoveIdx = elPropIdx
+            } else {
+              // el 不是字符串字面量,加 review
+              utils.manualReview(
+                'new Vue({el: ...}) — el 不是字符串,无法自动转 .mount(),需手动处理',
+              )
+            }
+          }
+
           if (
             t.isMemberExpression(parent) &&
-            t.isCallExpression((parent as any).object) &&
+            t.isNewExpression((parent as any).object) &&
             t.isIdentifier((parent as any).property, { name: '$mount' }) &&
+            (parent as any).arguments &&
             (parent as any).arguments[0] &&
             t.isStringLiteral((parent as any).arguments[0])
           ) {
             // 整段替换为 createApp(...).mount('#app')
+            // 如果同时有 el 选项,移除它(因为 $mount 会覆盖 el)
+            if (elRemoveIdx >= 0) {
+              optionsArg.properties.splice(elRemoveIdx, 1)
+            }
             const mountCall = t.callExpression(
               t.memberExpression(createAppCall, t.identifier('mount')),
               [(parent as any).arguments[0]],
             )
             // 替换外层的 $mount 调用
             path.parentPath.replaceWith(mountCall)
+            utils.markChanged('new Vue({...}).$mount() → createApp(...).mount()')
+          } else if (elMountArg) {
+            // iter-032: `new Vue({el: '#app'})` 简写模式
+            // 移除 el,加 .mount('#app') chain
+            optionsArg.properties.splice(elRemoveIdx, 1)
+            const mountCall = t.callExpression(
+              t.memberExpression(createAppCall, t.identifier('mount')),
+              [elMountArg],
+            )
+            path.replaceWith(mountCall)
+            utils.markChanged('new Vue({el}) → createApp().mount(el)')
           } else {
             // 仅替换 new Vue 部分
             path.replaceWith(createAppCall)

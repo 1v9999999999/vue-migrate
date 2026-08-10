@@ -149,6 +149,59 @@
 | B39 | elementui icon.ts: 多重 edit 在 `out` 上直接 splice，原 template 偏移失效 → 多字节 UTF-8 损坏 | iter-029 | elementui/icon |
 | B40 | elementui tsconfig 残留 `rootDir: "./src"`，阻止跨包 import | iter-029 | elementui/tsconfig |
 | A41 | `Vue.extend(x) → defineComponent(x)` 在 `vue2-compat` 已经实现（CallExpression visitor, line 60-75）| iter-031 | vue2-compat |
+| B42 | vue2-compat: `new Vue({...}).$mount('#app')` 转 `createApp(...).mount(...)` 条件错（`isCallExpression(parent.object)` 应该是 `isNewExpression`），导致 `.mount()` 永远丢失 | iter-032 | vue2-compat |
+| B43 | vue2-compat: `new Vue({el: '#app'})` 简写模式没处理（el 选项应该移除并加 `.mount('#app')` chain）| iter-032 | vue2-compat |
+| B44 | vue3-entry: entry chain finder 只认 `.$mount(`,不认 `.mount(`（vue2-compat 修复后会输出 `.mount`）| iter-032 | vue3-entry |
+
+## iter-032 highlights: 拉 PanJiaChen/vue-element-admin (87k star, 131 .vue) 找 bug
+
+### 拉真实复杂项目
+- **新样本**: `examples/ve-admin-test/` (131 .vue + 176 js/ts, 87k star, 4.4.0)
+  - 用 Node.js fetch + GH token 下载 zipball,Expand-Archive 解压,flattern inner folder
+  - PowerShell `git clone` 网络 reset 失败,fallback 到 zipball API 路径
+
+### 发现 + 修复 3 个 critical bug
+- **B42** `vue2-compat/src/index.ts` `new Vue({...}).$mount()` 转 `createApp(...).mount()` 时,条件 `t.isCallExpression((parent as any).object)` 错（应该是 `isNewExpression`,因为 `parent.object` 是 NewExpression `new Vue({...})`,不是 CallExpression）。结果：`.mount('#app')` 永远丢失,Vue2 entry 文件转出来**没 mount**
+- **B43** `new Vue({el: '#app'})` 简写模式没处理。修：检测 el property,如果是 string literal,移除 el 并加 `.mount(el)` chain；如果是非字面量,加 manual review
+- **B44** `vue3-entry/src/index.ts` entry chain finder 只认 `.$mount(`,但 vue2-compat 修复后会输出 `.mount(`。修：同时接受两种 mount 调用
+
+### 验证
+- main.js 转换前:
+  ```js
+  new Vue({
+    el: '#app', router, store,
+    render: h => h(App)
+  })
+  Vue.config.productionTip = false
+  Vue.use(ElementPlus, {...})
+  Object.keys(filters).forEach(key => Vue.filter(key, filters[key]))
+  ```
+- main.js 转换后 (iter-032):
+  ```js
+  createApp(defineComponent({router, store, render: h => h(App)}))
+    .use(ElementPlus, {...})
+    .mount("#app")
+  ```
+  （`Vue.config.productionTip` 删除,`Vue.filter` forEach body 清空,`el` 移除,`Vue.use` chain 进 `.use()`）
+
+### iter-032 state
+| Metric | iter-031 | iter-032 |
+|---|---|---|
+| tsc errors | 0/12 | 0/12 |
+| unit tests | 130/130 | 130/130 |
+| review (ve-admin-test) | 226 | 225 |
+| review (8 sample total) | 540 | **539** (-1) |
+| compileOk | 0.988 | 0.988 |
+| astEquivalent | 0.649 | 0.649 |
+| semanticDiff | 0.742 | **0.743** (+0.001) |
+| runtimeSafe | 0.884 | 0.884 |
+
+✅ **0 回归,1 个 review 减少**(productionTip 删除),1 个 semantic 微提升。ve-admin-test review 226 → 225,说明 fix 帮了真实项目 1 个 review。
+
+### 遗留 issue（不动,留给下个 iter）
+- **#15** `render: h => h(App)` 在 `createApp()` 内不优雅：可简化为 `createApp(App).use(...).mount('#app')` (App 是组件,不需要 defineComponent 包装)
+- **#15b** `new Vuex.Store({modules, getters})` modules 模式没被 vuex-pinia 转换 (store/index.js 仍 Vue2 写法)
+- **#15c** `import Vue from 'vue'` 没被处理 (Vue 3 没 default export,但 vue3-entry 应该 chain `Vue.use(...)` 已经够用)
 
 ## iter-031 highlights: Open issue 清理
 
