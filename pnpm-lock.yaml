@@ -119,6 +119,9 @@ importers:
       '@vue-migrate/core':
         specifier: workspace:*
         version: link:../../core
+      '@vue-migrate/plugin-vue3-template':
+        specifier: workspace:*
+        version: link:../vue3-template
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

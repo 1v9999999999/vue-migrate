@@ -5,7 +5,6 @@
  *   <my-comp>
  *     <span slot="header">标题</span>
  *     <span slot-scope="props">{{ props.text }}</span>
- *     <span slot="item" slot-scope="row">{{ row.id }}</span>
  *   </my-comp>
  *
  * Vue3 写法：
@@ -16,9 +15,6 @@
  *     <template #default="props">
  *       <span>{{ props.text }}</span>
  *     </template>
- *     <template #item="row">
- *       <span>{{ row.id }}</span>
- *     </template>
  *   </my-comp>
  *
  * 注意：
@@ -26,6 +22,9 @@
  *   - 只有 slot-scope：默认 slot 名是 "default"
  *   - 自闭合元素也支持
  *   - 缩进：尽量保持原缩进
+ *
+ * 实现：用 template-editor 的 replaceElement 统一 splice，避开 B33
+ * 双层 wrap bug。原元素已经是 <template> 时也走同一路径。
  */
 
 import {
@@ -34,24 +33,18 @@ import {
   type ElementMatch,
   type ParsedAttr,
 } from '../utils/template-scanner.js'
+import { applyEdits } from '../utils/template-editor.js'
 
 export interface SlotRewriteResult {
-  /** 修改后的模板内容 */
   out: string
-  /** 是否发生了变化 */
   changed: boolean
-  /** 变化描述 */
   changes: string[]
-  /** 需要人工 review 的项 */
   reviewItems: string[]
 }
 
-/**
- * 主入口：把模板里的 slot / slot-scope 重写为 <template #xxx>
- */
 export function rewriteSlots(template: string): SlotRewriteResult {
   const all = scanAllElements(template)
-  // 只关心带 slot / slot-scope 的元素
+  // 收集所有带 slot / slot-scope 的元素
   const targets: ElementMatch[] = []
   for (const el of all) {
     if (findAttr(el, 'slot') || findAttr(el, 'slot-scope')) {
@@ -62,12 +55,11 @@ export function rewriteSlots(template: string): SlotRewriteResult {
     return { out: template, changed: false, changes: [], reviewItems: [] }
   }
 
-  // 从右往左处理（offset 大的先处理），避免前面替换影响后面的 offset
-  targets.sort((a, b) => b.start - a.start)
-
   const changes: string[] = []
   const reviewItems: string[] = []
-  let out = template
+  const edits: Array<{ start: number; end: number; replacement: string }> = []
+  // 用 edMap 保持每个 target 对应的描述
+  const editDescs: string[] = []
 
   for (const el of targets) {
     const slotAttr = findAttr(el, 'slot')
@@ -77,7 +69,7 @@ export function rewriteSlots(template: string): SlotRewriteResult {
     const scopeName = scopeAttr?.value
 
     // 检查是否是动态 slot name
-    if (slotName && (slotName as string).startsWith(':')) {
+    if (typeof slotName === 'string' && slotName.startsWith(':')) {
       reviewItems.push(
         `动态 slot 名 "${slotName}" 需手动确认 Vue3 等价写法`,
       )
@@ -90,8 +82,7 @@ export function rewriteSlots(template: string): SlotRewriteResult {
     const finalScopeName =
       typeof scopeName === 'string' ? scopeName : null
 
-    // 特殊路径：原元素是 <template> 时，不要再包一层
-    // 直接把 slot / slot-scope 属性改写为 #xxx=... 即可
+    // 关键修复（B33）：原元素是 <template> 时，只重写属性，不再 wrap
     if (el.tagName === 'template') {
       const newOpen = buildTemplateOpenTag(
         el,
@@ -99,23 +90,27 @@ export function rewriteSlots(template: string): SlotRewriteResult {
         finalSlotName,
         finalScopeName,
       )
-      // 只替换 open tag 文本（openStart..openEnd+1），不碰 close tag
-      out = out.slice(0, el.openStart) + newOpen + out.slice(el.openEnd + 1)
-      const desc =
+      edits.push({
+        start: el.openStart,
+        end: el.openEnd + 1, // 包含 '>'
+        replacement: newOpen,
+      })
+      editDescs.push(
         `<template slot="${finalSlotName}"` +
-        (finalScopeName ? ` slot-scope="${finalScopeName}"` : '') +
-        ' → <template #' + finalSlotName + (finalScopeName ? `="${finalScopeName}"` : '') + '>'
-      changes.push(desc)
+          (finalScopeName ? ` slot-scope="${finalScopeName}"` : '') +
+          ' → <template #' + finalSlotName +
+          (finalScopeName ? `="${finalScopeName}"` : '') + '>',
+      )
       continue
     }
 
-    // 1. 重构内层元素：去掉 slot / slot-scope 属性
-    const parts = rebuildElementParts(el, template)
-
-    // 2. 构造外层 <template> 包裹
-    // lineIndent 是原 element 所在行的缩进
+    // 普通元素：wrap 成 <template #xxx>...</template>
+    // 注意：edit 范围要包含 element 之前的 line indent，否则会
+    // 出现双层缩进（wrapped 自身以 lineIndent 开头）。
     const lineIndent = detectIndent(template, el.start)
+    const lineStart = el.start - lineIndent.length
     const indentUnit = detectIndentUnit(template)
+    const parts = rebuildElementParts(el, template)
     const wrapped = wrapInTemplate(
       finalSlotName,
       finalScopeName,
@@ -123,44 +118,39 @@ export function rewriteSlots(template: string): SlotRewriteResult {
       indentUnit,
       lineIndent,
     )
-    // prefix 只到上一行的换行符（不包括 element 行的缩进）
-    const prefix = computePrefix(template, el.start)
-
-    // 3. 替换
-    out = prefix + wrapped + out.slice(el.end)
-
-    const desc =
+    edits.push({
+      start: lineStart,
+      end: el.end,
+      replacement: wrapped,
+    })
+    editDescs.push(
       `<${el.tagName} slot="${finalSlotName}"` +
-      (finalScopeName ? ` slot-scope="${finalScopeName}"` : '') +
-      '> → <template>'
-    changes.push(desc)
+        (finalScopeName ? ` slot-scope="${finalScopeName}"` : '') +
+        '> → <template>',
+    )
   }
 
   return {
-    out,
+    out: applyEdits(template, edits),
     changed: true,
-    changes,
+    changes: editDescs,
     reviewItems,
   }
 }
 
 /**
- * 重写 <template> 的 open tag：
- *   - 去掉 slot / slot-scope 属性
- *   - 加上 #slotName[=scope] 作为 v-slot 指令
- *   - 保留其它属性（如 v-if / v-for）
+ * 重写 <template> 的 open tag：去掉 slot / slot-scope 属性，
+ * 加上 v-slot 指令 (#slotName=scope)，保留其它属性。
  */
 function buildTemplateOpenTag(
   el: ElementMatch,
-  template: string,
+  source: string,
   slotName: string,
   scopeName: string | null,
 ): string {
-  const tagName = template.slice(el.tagNameStart, el.tagNameEnd)
-  // 保留除 slot / slot-scope 之外的属性
+  const tagName = source.slice(el.tagNameStart, el.tagNameEnd)
   const kept = el.attrs.filter((a) => a.name !== 'slot' && a.name !== 'slot-scope')
-  // 重新构造 attrText
-  const attrText = template.slice(el.tagNameEnd, el.openEnd)
+  const attrText = source.slice(el.tagNameEnd, el.openEnd)
   let newAttrText = ''
   let cursor = 0
   for (const a of kept) {
@@ -168,16 +158,14 @@ function buildTemplateOpenTag(
     newAttrText += a.raw
     cursor = a.end
   }
-  // 加 v-slot 指令：#slotName=scope
   const vslotAttr = scopeName ? ` #${slotName}="${scopeName}"` : ` #${slotName}`
   return `<${tagName}${newAttrText}${vslotAttr}>`
 }
 
-/**
- * 重建一个元素，返回三段：openTag / innerContent / closeTag
- * - 去掉 slot / slot-scope 属性
- * - 其余属性原样保留
- */
+// ---------------------------------------------------------------------------
+// 普通元素 wrap 逻辑（保持原 indent）
+// ---------------------------------------------------------------------------
+
 interface ElementParts {
   openTag: string
   innerContent: string
@@ -185,50 +173,28 @@ interface ElementParts {
   selfClosing: boolean
 }
 
-function rebuildElementParts(
-  el: ElementMatch,
-  template: string,
-): ElementParts {
-  const tagName = template.slice(el.tagNameStart, el.tagNameEnd)
+function rebuildElementParts(el: ElementMatch, source: string): ElementParts {
+  const tagName = source.slice(el.tagNameStart, el.tagNameEnd)
   const kept: ParsedAttr[] = el.attrs.filter(
     (a) => a.name !== 'slot' && a.name !== 'slot-scope',
   )
-
-  // 取出 attrText 原文
-  const attrText = template.slice(el.tagNameEnd, el.openEnd)
-  // 重建 attrText：只保留 kept 列表里的 attribute 及其前面的空白
+  const attrText = source.slice(el.tagNameEnd, el.openEnd)
   let newAttrText = ''
   let cursor = 0
   for (const a of kept) {
-    if (a.start > cursor) {
-      newAttrText += attrText.slice(cursor, a.start)
-    }
+    if (a.start > cursor) newAttrText += attrText.slice(cursor, a.start)
     newAttrText += a.raw
     cursor = a.end
   }
-  // 注意：不再追加 cursor 之后的尾部 —— 那是被丢弃的 attrs
-
   const openTag = `<${tagName}${newAttrText}${el.selfClosing ? ' />' : '>'}`
-
   if (el.selfClosing) {
     return { openTag, innerContent: '', closeTag: '', selfClosing: true }
   }
-
-  const innerContent = template.slice(el.contentStart, el.contentEnd)
-  const closeTag = template.slice(el.closeStart, el.closeEnd)
+  const innerContent = source.slice(el.contentStart, el.contentEnd)
+  const closeTag = source.slice(el.closeStart, el.closeEnd)
   return { openTag, innerContent, closeTag, selfClosing: false }
 }
 
-/**
- * 把内层元素包成 <template #slotName[=scope]>...</template>
- *
- * 输出结构（每行都自带 lineIndent）：
- *   {lineIndent}<template #xxx>            <- 第一行
- *   {innerIndent}<openTag>...              <- 内层 open tag（innerIndent = lineIndent + indentUnit）
- *   {原始 indent + indentUnit}<inner lines>  <- 中间内容
- *   {innerIndent}</closeTag>               <- 内层 close tag
- *   {lineIndent}</template>                <- 最后一行
- */
 function wrapInTemplate(
   slotName: string,
   scopeName: string | null,
@@ -236,10 +202,12 @@ function wrapInTemplate(
   indentUnit: string,
   lineIndent: string,
 ): string {
-  const templateOpen = lineIndent +
-    `<template #${slotName}` + (scopeName ? `="${scopeName}"` : '') + '>'
+  const templateOpen =
+    lineIndent +
+    `<template #${slotName}` +
+    (scopeName ? `="${scopeName}"` : '') +
+    '>'
   const templateClose = lineIndent + `</template>`
-
   const innerIndent = lineIndent + indentUnit
 
   let inner: string
@@ -248,11 +216,6 @@ function wrapInTemplate(
   } else if (!parts.innerContent.includes('\n')) {
     inner = innerIndent + parts.openTag + parts.innerContent + parts.closeTag
   } else {
-    // 块级内容：先剥掉内容首尾的纯空白行，得到中间真实的"内容行"
-    // 原始 innerContent 形如 "\n    <h1>...\n    <p>...\n  "
-    // 剥掉首尾后是 "    <h1>...\n    <p>..."
-    // 每行的原始 leading 是相对于原 open tag 的列（0）的偏移。
-    // 新位置 = 原 leading + indentUnit（即整体下移一层）。
     const trimmed = trimBlockContent(parts.innerContent)
     const shifted = trimmed
       .split('\n')
@@ -267,47 +230,26 @@ function wrapInTemplate(
       innerIndent +
       parts.closeTag
   }
-
   return templateOpen + '\n' + inner + '\n' + templateClose
 }
 
-/** 去掉内容首尾的纯空白行（保留中间的内容行）
- *  原始: "\n    <h1>...\n    <p>...\n  "
- *  剥后: "    <h1>...\n    <p>..."
- */
 function trimBlockContent(content: string): string {
-  // 去掉开头的 \n 和空白
   let s = content.replace(/^\s*\n/, '')
-  // 去掉结尾的 \n 和空白（这些是 close tag 所在行的缩进）
   s = s.replace(/\n\s*$/, '')
   return s
 }
 
-/** 计算 prefix：到 element 所在行之前的换行符为止（不含 element 行的缩进） */
-function computePrefix(template: string, offset: number): string {
-  // 找 offset 之前的 \n
+function detectIndent(source: string, offset: number): string {
   let i = offset - 1
-  while (i >= 0 && template[i] !== '\n') i--
-  // i 现在指向 \n（或者 -1）
-  return template.slice(0, i + 1)
-}
-
-/** 检测元素起始处的缩进（最近的前导空白） */
-function detectIndent(template: string, offset: number): string {
-  // 找 offset 之前的 \n
-  let i = offset - 1
-  while (i >= 0 && template[i] !== '\n') i--
+  while (i >= 0 && source[i] !== '\n') i--
   const start = i + 1
   let j = start
-  while (j < offset && (template[j] === ' ' || template[j] === '\t')) j++
-  return template.slice(start, j)
+  while (j < offset && (source[j] === ' ' || source[j] === '\t')) j++
+  return source.slice(start, j)
 }
 
-/** 检测整个文件的缩进单位（默认 2 spaces） */
-function detectIndentUnit(template: string): string {
-  // 简单策略：看前几个非空行的缩进，取 GCD
-  // MVP：默认 2 spaces
-  const lines = template.split('\n')
+function detectIndentUnit(source: string): string {
+  const lines = source.split('\n')
   const indents: number[] = []
   for (const line of lines) {
     const m = /^( +)\S/.exec(line)
@@ -315,7 +257,6 @@ function detectIndentUnit(template: string): string {
     if (indents.length >= 5) break
   }
   if (indents.length === 0) return '  '
-  // 取最小值
   const min = Math.min(...indents)
   if (min === 0) return '  '
   return ' '.repeat(Math.min(min, 4))

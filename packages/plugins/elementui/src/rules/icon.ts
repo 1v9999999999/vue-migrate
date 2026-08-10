@@ -14,6 +14,10 @@ import {
   findAttr,
   type ParsedAttr,
 } from '../utils/template-scanner.js'
+import {
+  applyEdits,
+  type TextEdit,
+} from '../../../vue3-template/src/utils/template-editor'
 import { replaceTemplateContent } from '../utils/sfc-source.js'
 
 export interface IconTransformResult {
@@ -87,12 +91,9 @@ export function transformIcons(template: string): IconTransformResult {
   const all = scanAllElements(template)
   const reviewItems: string[] = []
   const changes: string[] = []
-  let out = template
+  const edits: TextEdit[] = []
 
   // 1. 处理 <i class="el-icon-xxx"> 形式
-  type Edit = { start: number; end: number; replacement: string; desc: string }
-  const edits: Edit[] = []
-
   // Dedup: only add one review per icon class per file
   const seenIconClasses = new Set<string>()
 
@@ -129,13 +130,10 @@ export function transformIcons(template: string): IconTransformResult {
     }
     const otherAttrStr = attrTexts.length > 0 ? ' ' + attrTexts.join(' ') : ''
     // 整个 <i ...></i> 替换为 <el-icon ...otherAttrs><Xxx /></el-icon>
+    // 收集到 edits，统一由 applyEdits 右到左处理（避免前一次 splice 导致 offset 失效）
     const newTag = `<el-icon${otherAttrStr}><${componentName} /></el-icon>`
-    edits.push({
-      start: el.start,
-      end: el.end,
-      replacement: newTag,
-      desc: `<i class="${elIconClass}"> → <el-icon><${componentName} /></el-icon>`,
-    })
+    edits.push({ start: el.start, end: el.end, replacement: newTag })
+    changes.push(`<i class="${elIconClass}"> → <el-icon><${componentName} /></el-icon>`)
     if (otherClasses.length > 0 && !seenIconClasses.has(elIconClass)) {
       seenIconClasses.add(elIconClass)
       reviewItems.push(
@@ -145,6 +143,7 @@ export function transformIcons(template: string): IconTransformResult {
   }
 
   // 2. 处理 <el-button icon="el-icon-xxx"> 形式
+  // 每个 (el, attr) 是一个独立 splice：右到左处理时按 attr offset 排
   for (const el of all) {
     if (!el.tagName.startsWith('el-')) continue
     const iconAttr = findAttr(el, 'icon')
@@ -153,16 +152,10 @@ export function transformIcons(template: string): IconTransformResult {
     if (!iconName.startsWith('el-icon-')) continue
 
     const componentName = getIconComponentName(iconName)
-    // 移除 icon 属性
-    const attrTextStartInTpl = el.tagNameEnd
-    const absStart = attrTextStartInTpl + iconAttr.start
-    const absEnd = attrTextStartInTpl + iconAttr.end
-    edits.push({
-      start: absStart,
-      end: absEnd,
-      replacement: '',  // 移除 icon 属性
-      desc: `${el.tagName} icon="${iconName}" → removed (use el-icon 包裹的子组件)`,
-    })
+    // 用与 editor 相同的算法：算出 removeStart / logicalEnd，把 splice 编码为 TextEdit
+    const edit = computeRemoveAttrEdit(template, el, iconAttr)
+    if (edit) edits.push(edit)
+    changes.push(`${el.tagName} icon="${iconName}" → removed (use el-icon 包裹的子组件)`)
     reviewItems.push(
       `<${el.tagName} icon="${iconName}"> → 在 children 里加 <el-icon><${componentName} /></el-icon>。Vue3 需手动调整按钮结构。`,
     )
@@ -172,23 +165,56 @@ export function transformIcons(template: string): IconTransformResult {
     return { out: template, changed: false, changes, reviewItems }
   }
 
-  // 按 start 降序替换
-  edits.sort((a, b) => b.start - a.start)
-  for (const edit of edits) {
-    if (edit.replacement === '') {
-      // 移除属性，同时移除可能的 leading 空格
-      let removeStart = edit.start
-      if (out[removeStart - 1] === ' ' || out[removeStart - 1] === '\t') {
-        removeStart--
-      }
-      out = out.slice(0, removeStart) + out.slice(edit.end)
-    } else {
-      out = out.slice(0, edit.start) + edit.replacement + out.slice(edit.end)
-    }
-    changes.push(edit.desc)
+  return { out: applyEdits(template, edits), changed: true, changes, reviewItems }
+}
+
+/**
+ * 复刻 central editor 中 replaceAttribute 的算法，但返回 TextEdit（而不是
+ * 重新 splice 整个 source），这样多个 edit 可以统一在 applyEdits 里右到左处理。
+ */
+function computeRemoveAttrEdit(
+  source: string,
+  el: any,
+  attr: ParsedAttr,
+): TextEdit | null {
+  const absStart = el.tagNameEnd + attr.start
+  const absEnd = el.tagNameEnd + attr.end
+  const tail = el.selfClosing ? ' />' : '>'
+
+  const hasLeft = el.attrs.some((a: ParsedAttr) => a !== attr && a.start < attr.start)
+  const hasRight = el.attrs.some((a: ParsedAttr, i: number) => {
+    if (a !== attr) return i > el.attrs.indexOf(attr)
+    return false
+  })
+  // 上面的 hasRight 实现有 bug。重新写。
+  // 找到 attr 在 attrs 里的 index
+  const idx = el.attrs.indexOf(attr)
+  const hasRightFixed = idx >= 0 && idx < el.attrs.length - 1
+
+  const isBooleanAttr =
+    absEnd > absStart &&
+    (source[absEnd - 1] === ' ' || source[absEnd - 1] === '\t')
+
+  let removeStart = absStart
+  if (
+    !isBooleanAttr &&
+    removeStart > el.tagNameEnd &&
+    (source[removeStart - 1] === ' ' || source[removeStart - 1] === '\t')
+  ) {
+    removeStart--
   }
 
-  return { out, changed: true, changes, reviewItems }
+  if (hasRightFixed) {
+    return { start: removeStart, end: absEnd, replacement: '' }
+  }
+  if (hasLeft && isBooleanAttr) {
+    const start = removeStart > el.tagNameEnd ? removeStart - 1 : removeStart
+    return { start, end: el.openEnd + 1, replacement: tail }
+  }
+  if (hasLeft) {
+    return { start: removeStart, end: el.openEnd + 1, replacement: tail }
+  }
+  return { start: el.tagNameEnd, end: el.openEnd + 1, replacement: tail }
 }
 
 export function applyIconTransform(ctx: any, markMessage: string): void {
