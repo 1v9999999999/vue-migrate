@@ -59,6 +59,11 @@ export interface OptionsToSetupResult {
    *  `Record<string, any>`). Needed by `replaceThisInBody` so it can pick
    *  the right body-substitution form. */
   isTs: boolean
+  /** iter-044a (Bug A3): top-level const declarations that need to be
+   *  preserved in the <script setup> output. Key: new name (e.g. '__lineChartData__'),
+   *  value: original source text of the const declaration (e.g. 'const lineChartData = {...}').
+   *  These are emitted BEFORE the data ref declarations so they're available when refs init. */
+  topLevelConsts: Map<string, string>
 }
 
 interface DataField {
@@ -174,6 +179,7 @@ export function convertOptionsToSetup(
     hasProps: false,
     propsTypeString: '{}',
     isTs: false,
+    topLevelConsts: new Map(),
   }
 
   if (!file.scriptAst)
@@ -241,6 +247,19 @@ return result } }
       )
     }
   }
+
+  // iter-044a (Bug A3): 检测 composition 自引用 (data 字段名 撞 顶层 const, data/methods 引用了顶层 const)
+  //   模式:
+  //     const lineChartData = { newVisitis: {...}, messages: {...} }   // 顶层 const
+  //     export default {
+  //       data() { return { lineChartData: lineChartData.newVisitis } },   // 引用顶层
+  //       methods: { handleSetLineChartData(type) { this.lineChartData = lineChartData[type] } }  // 引用顶层
+  //     }
+  //   之前的输出 (bug):
+  //     const lineChartData = ref(lineChartData.newVisitis)   // ❌ 自引用, ReferenceError
+  //     function handleSetLineChartData(type) { lineChartData.value = lineChartData[type] }  // ❌ lineChartData[type] 不是 ref
+  //   修复: 把顶层 const 重命名为 __X__, 更新 data() init + methods body, 顶层 const 也保留到 <script setup> 输出里
+  detectAndFixSelfReference(file, data, methods, result)
 
   // Detect Vuex state/action usage
   detectVuexUsage(file, result)
@@ -351,6 +370,17 @@ const injected: string[] = []
         `\n模板/computed/methods 中 this.xxx 引用已自动改为 props.xxx (无运行时变化)。`,
       )
     }
+  }
+
+  // 2.5 iter-044a (Bug A3): 顶层 const declarations (重命名后的 __X__ const 们)
+  //     - 必须在 data ref 声明之前 (ref init 引用了它们)
+  //     - 必须在 injectedTopSetup (router/emit/store) 之前
+  //     - 必须在 props defineProps 之前
+  if (result.topLevelConsts.size > 0) {
+    for (const [, src] of result.topLevelConsts) {
+      lines.push(src)
+    }
+    lines.push('')
   }
 
   // 3. Data fields
@@ -695,6 +725,128 @@ if (inner === '$route' && result.routeUsed) inner = 'route'
   result.changed = true  // iter-023: enable with safe free-var fallback
 
   return result
+}
+
+/**
+ * iter-044a (Bug A3): 检测并修复 composition 自引用
+ *
+ * 模式:
+ *   const lineChartData = { newVisitis: {...}, messages: {...} }   // 顶层 const
+ *   export default {
+ *     data() { return { lineChartData: lineChartData.newVisitis } },   // data 字段名 === 顶层 const 名, 引用顶层
+ *     methods: {
+ *       handleSetLineChartData(type) { this.lineChartData = lineChartData[type] }  // methods 也引用顶层
+ *     }
+ *   }
+ *
+ * 修复策略:
+ *   1. 找到 data 字段名 X 跟 顶层 const X 撞名, 且 data() init 引用了 X
+ *   2. 顶层 const 重命名为 __X__ (避免跟 data 字段 ref 重名)
+ *   3. data() init 里所有 X 标识符引用 → __X__
+ *   4. methods body 里所有 X 标识符引用 → __X__ (this.X 不变, 因为是 ref 引用, replaceThisInBody 会翻译)
+ *   5. 把原 `const X = ...` 的源码加到 result.topLevelConsts, 供 buildNewScript 输出到 <script setup>
+ */
+function detectAndFixSelfReference(
+  file: FileNode,
+  data: { fields: DataField[] },
+  methods: MethodDef[],
+  result: OptionsToSetupResult,
+): void {
+  if (!file.scriptAst) return
+  const program = (file.scriptAst as any).program
+  if (!program || !program.body) return
+
+  // 1. 找顶层 const 声明 (在 export default 之外的)
+  //    任何 init 形式都可以 (object / array / 标量 / 函数调用 / ...), 只要能形成自引用就 rename
+  // iter-044a (Bug A3): 用 babel generate(stmt).code 拿源码 — 不依赖 AST 位置偏移,
+  //   因为前面 plugin (elementui / vxe-table 等) 可能修改了 sfc.script.content,
+  //   让原始 AST 位置失效。generate() 从 AST 节点直接生成代码, 总是跟 AST 一致。
+  const topLevelConsts: { name: string; source: string }[] = []
+  for (const stmt of program.body) {
+    if (t.isExportDefaultDeclaration(stmt)) continue
+    if (!t.isVariableDeclaration(stmt)) continue
+    for (const d of stmt.declarations) {
+      if (!t.isVariableDeclarator(d)) continue
+      if (!t.isIdentifier(d.id)) continue
+      if (!d.init) continue
+      // 只要 const 形式 (kind === 'const') — let/var 通常是循环变量或重赋值, 不该 rename
+      if ((stmt as any).kind !== 'const') continue
+      // iter-044a fix: 不要限制 init 是 Object/Array — 标量 (e.g. const value = 1) 也算
+      //   data field `value: value + 1` 形式也会自引用
+      const name = d.id.name
+      // 用 generate 拿源码 (从 AST 节点直接生成, 跟 AST 完全一致)
+      const src = generate(stmt)
+      topLevelConsts.push({ name, source: src })
+    }
+  }
+  if (topLevelConsts.length === 0) return
+
+  // 2. 对每个 data 字段, 检查是否有顶层 const 同名, 且 init 引用了它
+  for (const f of data.fields) {
+    const conflicting = topLevelConsts.find(c => c.name === f.name)
+    if (!conflicting) continue
+    // 检查 init 字符串是否以 f.name 开头 (即 lineChartData.foo 形式)
+    //   - initStr 是 generate(prop.value).code, 是 value 部分, 不含 key
+    //   - 例如 "lineChartData.newVisitis" 或 "lineChartData[type]" 或 "lineChartData.foo + 'bar'"
+    const initStrTrim = f.initStr.trim()
+    if (!new RegExp(`\\b${f.name}\\b`).test(initStrTrim)) continue
+
+    // 3. 找到冲突, 重命名顶层 const 为 __X__, 更新所有引用
+    const newName = `__${f.name}__`
+    // 3a. data() init: 替换 X → __X__ (小心不要替换 'this.X' 或其他非引用形式)
+    f.initStr = renameIdentifierInCode(f.initStr, f.name, newName)
+    // 3b. methods body: 替换 X → __X__ (this.X 是 property 不是 identifier ref, 不影响)
+    for (const m of methods) {
+      m.body = renameIdentifierInCode(m.body, f.name, newName)
+    }
+    // 3c. 顶层 const source 也要重命名 (const X = {...} → const __X__ = {...})
+    const renamedConst = renameIdentifierInCode(conflicting.source, f.name, newName)
+    // 3d. 记录到 result.topLevelConsts, 供 buildNewScript 输出
+    result.topLevelConsts.set(newName, renamedConst)
+    // 3e. review
+    result.reviewItems.push(
+      `顶层 \`const ${f.name} = ...\` 跟 data 字段名 \`${f.name}\` 撞名 (且 data/methods 引用了它), 已自动重命名为 \`${newName}\`。` +
+      `\n  • 顶层 const 的源码已保留到 <script setup> 顶部 (在 ref 声明之前, 避免 TDZ)` +
+      `\n  • data() init 里 \`${f.name}.xxx\` 已改为 \`${newName}.xxx\`` +
+      `\n  • methods 里 \`${f.name}[...]\` 已改为 \`${newName}[...]\`` +
+      `\n  • 模板里 \`${f.name}\` 引用不变 (指 ref 变量, 不是原顶层 const)`,
+    )
+  }
+}
+
+/**
+ * 安全的 identifier rename: 只替换独立的 identifier 引用, 不动:
+ *   - declaration id (const X = ...) — 这是变量声明, 不是引用; 但因为我们用 word boundary, 也会换, 但生成的代码里没 const X = ...
+ *   - 字符串字面量里的字符 (粗略: Vue 2 components 里很少有 const X = "X" 这种, 万一有问题用户 review 会发现)
+ *   - member expression 的非 computed property (e.g. obj.X 或 this.X) — X 是 property key, 不是 identifier ref
+ *   - property key (e.g. { X: 1 }) — X 是 key, 不是 identifier ref
+ *
+ * 用 negative lookbehind 排除前置是 . 的情况 (member property):
+ *   - `obj.X` → X 不换 (X 是 property key)
+ *   - `obj?.[X]` (optional chaining) → X 是 computed key, 也要换 (但这种很少见, 暂忽略)
+ *   - `X.foo` → X 换 (X 是 reference)
+ *   - `this.X = X[type]` → 第一个 X 是 property (不换), 第二个 X 是 reference (换)
+ */
+function renameIdentifierInCode(code: any, oldName: string, newName: string): string {
+  // iter-044a (Bug A3): 防御性 — f.initStr / m.body 应该是 string, 但偶尔可能是 object (vue3-types 改写后)
+  if (typeof code !== 'string') {
+    if (code && typeof code === 'object' && typeof (code as any).code === 'string') {
+      code = (code as any).code
+    } else {
+      return String(code ?? '')
+    }
+  }
+  // (?<!\.) — not preceded by . (excludes member property)
+  // \b — word boundary at start (covered by (?<!\.))
+  // 后置用 \b 排除 (X.foo 中的 X 后是 ., 不是 word boundary, OK 不匹配第二个 X)
+  return (code as string).replace(
+    new RegExp(`(?<!\\.)\\b${escapeRegExp(oldName)}\\b`, 'g'),
+    newName,
+  )
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function parseData(obj: any, result: OptionsToSetupResult): { fields: DataField[] } {
