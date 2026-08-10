@@ -39,7 +39,7 @@ function runTransform(input: string): { output: string; markedChanged: boolean; 
     },
   }
   const plugins = getPlugins()
-  const p = plugins.find((pl: any) => pl.name === 'vue-router-v4')
+  const p = plugins.find((pl: any) => pl.name === 'vue-router-v4') as any
   if (!p) throw new Error('plugin not registered')
   p.transform(ctx)
   const output = generate(ast)

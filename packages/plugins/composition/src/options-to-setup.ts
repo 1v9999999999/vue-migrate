@@ -1267,7 +1267,7 @@ function detectVuexUsage(file: FileNode, result: OptionsToSetupResult) {
     const prop = exportDefault.properties.find((p: any) =>
       (t.isObjectProperty(p) || t.isObjectMethod(p)) && t.isIdentifier(p.key) && p.key.name === blockKey)
     if (!prop) continue
-    const obj = t.isObjectMethod(prop) ? prop.body : prop.value
+    const obj = t.isObjectMethod(prop) ? prop.body : (t.isObjectProperty(prop) ? prop.value : null)
     if (!t.isObjectExpression(obj)) continue
     for (const p of obj.properties) {
       if (t.isSpreadElement(p)) collectMapXxxSpread(p.argument, addState, addAction)

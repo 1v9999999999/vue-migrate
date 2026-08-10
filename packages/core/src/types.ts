@@ -161,6 +161,9 @@ export interface TransformContext {
   utils: TransformUtils
   /** 日志（每个插件独立 tag） */
   log: (msg: string) => void
+  /** iter-038: 顶层 syncScriptAstToSource — 跟 utils.syncScriptAstToSource 是同一个,
+   *  顶层提供方便 plugin 直接 ctx.syncScriptAstToSource() 调用 */
+  syncScriptAstToSource(): void
   /** 内部状态：是否已修改（由 utils.markChanged 设置） */
   __changed?: boolean
   /** 内部状态：最后一条 markChanged 消息 */

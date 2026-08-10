@@ -166,7 +166,7 @@ export function migrateScriptInstances(
       if (!isEmptyCallbackBody(cb as any)) return
 
       // 找到包含此 forEach 的 ExpressionStatement 并删除
-      const stmtPath = path.findParent((p: any) => p.isExpressionStatement())
+      const stmtPath = (path as any).findParent?.((p: any) => p.isExpressionStatement())
       if (!stmtPath) return
       // 别删非顶层 (例如 if-body 里的 forEach 可能是 if 的副作用)
       // 保守起见,只删顶层 forEach
