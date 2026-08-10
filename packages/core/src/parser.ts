@@ -25,7 +25,30 @@ export function parseFile(file: FileNode): void {
   if (file.kind === 'vue') {
     const scriptBlock = file.sfc?.script
     if (scriptBlock) {
-      file.scriptAst = parseScript(scriptBlock.content, isTypeScript(file))
+      const code = scriptBlock.content
+      // 1) 先按用户标记的 lang 解析
+      try {
+        file.scriptAst = parseScript(code, isTypeScript(file))
+        console.log(`[parser-DEBUG] ${file.relativePath} parsed as ${file.metadata.lang || (isTypeScript(file) ? 'ts' : 'js')}`)
+        return
+      } catch (e1) {
+        // 2) iter-035 fallback: 如果是 .vue 且默认 lang=js,试 TS (可能用户没标 lang="ts" 但实际是 TS)
+        if (
+          !isTypeScript(file) &&
+          (file.metadata.lang === 'js' || !file.metadata.lang)
+        ) {
+          try {
+            file.scriptAst = parseScript(code, true)
+            // 标记 file 为 TS (后续 codegen / 生成 import 等会用)
+            file.metadata.lang = 'ts'
+            console.log(`[parser-DEBUG] ${file.relativePath} FALLBACK to TS`)
+            return
+          } catch (e2: any) {
+            console.log(`[parser-DEBUG] ${file.relativePath} BOTH FAIL: ${(e2 as any).message?.slice(0, 100)}`)
+          }
+        }
+        throw e1
+      }
     }
     return
   }

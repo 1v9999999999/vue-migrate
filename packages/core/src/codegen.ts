@@ -95,6 +95,7 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
         if (check.ok) {
           results.set(file.path, code)
         } else {
+          console.log(`[codegen-DEBUG] selfCheck FAIL: ${file.relativePath} err=${check.error?.slice(0, 200)}`)
           file.transforms.push({
             plugin: 'core/codegen',
             message: 'self-check failed, skipping',

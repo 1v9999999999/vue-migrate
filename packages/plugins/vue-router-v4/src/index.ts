@@ -45,9 +45,10 @@ const plugin: TransformPlugin = {
     const source = ctx.file.source
 
     // 只处理含 vue-router 相关代码的文件
-if (
+    if (
       !/from\s+['"]vue-router['"]/.test(source) &&
       !/\bnew\s+Router\s*\(/.test(source) &&
+      !/\bnew\s+VueRouter\s*\(/.test(source) &&
       !/\brequire\.ensure\s*\(/.test(source)
     ) {
       return
@@ -148,9 +149,11 @@ const specifiers = node.specifiers
         const namedSpecs = specifiers.filter((s: any) => t.isImportSpecifier(s))
 
         // 检查是否需要：new Router 或 Vue.use(Router) 或 import Router from 'vue-router'
+        // iter-035 扩展: 也支持 `import VueRouter from 'vue-router'` + `new VueRouter(...)`（Vue 2 默认 import 形式）
         const isUsedAsRouter =
-          defaultSpec || // 之前以 Router 为名导入
+          defaultSpec || // 之前以 Router/VueRouter 为名导入
           /\bnew\s+Router\s*\(/.test(source) || // 直接在文件里有 new Router
+          /\bnew\s+VueRouter\s*\(/.test(source) || // iter-035: Vue 2 默认 import 形式
           // 检查 import specifier 的 imported name 是 Router
           namedSpecs.some((s: any) => t.isIdentifier(s.imported) && s.imported.name === 'Router')
 
@@ -166,9 +169,11 @@ const specifiers = node.specifiers
     })
 
     // ─── Pass C: 处理 new Router({...}) → createRouter({...}) ───
+    // iter-035: 也处理 new VueRouter({...})（Vue 2 默认 import 形式）
     traverse(ctx.file.scriptAst, {
       NewExpression(path: any) {
-        if (!t.isIdentifier(path.node.callee, { name: 'Router' })) return
+        const calleeName = t.isIdentifier(path.node.callee) ? path.node.callee.name : null
+        if (calleeName !== 'Router' && calleeName !== 'VueRouter') return
         const args = path.node.arguments
         if (args.length === 0) return
         const options = args[0]
@@ -210,7 +215,34 @@ const historyCall =
         // 构造 createRouter({...})
         const newObj = t.objectExpression(keptProps)
         const createRouterCall = t.callExpression(t.identifier('createRouter'), [newObj])
-        path.replaceWith(createRouterCall)
+
+        // iter-035: 检测箭头函数 wrapper `const x = () => new Router({...})`
+        //   这种模式下直接 `path.replaceWith(createRouter({...}))` 会导致 `const x = () => createRouter({...})` 递归
+        //   修复: 如果 parent 是 ArrowFunctionExpression 且 grandparent 是 VariableDeclarator,
+        //         整个 VariableDeclarator 替换成 `const x = createRouter({...})`
+        // babel traverse 的 path.parent 是 node,要用 parentPath 拿到 path
+        const parentPath = path.parentPath
+        const grandPath = parentPath?.parentPath
+        const parent = parentPath?.node
+        const grand = grandPath?.node
+        if (
+          parent &&
+          t.isArrowFunctionExpression(parent) &&
+          grand &&
+          t.isVariableDeclarator(grand) &&
+          t.isIdentifier(grand.id)
+        ) {
+          // 整个 VariableDeclarator 替换
+          // iter-035: rename 避免跟后续 const 冲突
+          //   原 const 可能是 'createRouter'(跟 import createRouter 冲突) 或 'router'(跟后续 const router 冲突)
+          //   用不会冲突的内部名 `__routerInstance__`,让用户后续重命名
+          const newIdName = '__routerInstance__'
+          const newId = t.identifier(newIdName)
+          const newDecl = t.variableDeclarator(newId, createRouterCall)
+          grandPath!.replaceWith(newDecl)
+        } else {
+          path.replaceWith(createRouterCall)
+        }
         changed = true
 
         if (mode === 'abstract') {
@@ -227,14 +259,22 @@ const historyCall =
     })
 
     // ─── Pass D: 清理 import { Router } 形式的 import ───
+    // iter-035: 也清理 `import VueRouter from 'vue-router'` default specifier
     traverse(ctx.file.scriptAst, {
       ImportDeclaration(path: any) {
         const node = path.node
         if (!t.isStringLiteral(node.source, { value: 'vue-router' }))
         return
         // 如果还有 named specifier 'Router'，删除
-node.specifiers = node.specifiers.filter((s: any) => { if (t.isImportSpecifier(s) && t.isIdentifier(s.imported) && s.imported.name === 'Router') { return false }
-return true
+        // 如果还有 default specifier (VueRouter)，也删除（用 createRouter 替代）
+        node.specifiers = node.specifiers.filter((s: any) => {
+          if (t.isImportSpecifier(s) && t.isIdentifier(s.imported) && s.imported.name === 'Router') {
+            return false
+          }
+          if (t.isImportDefaultSpecifier(s)) {
+            return false
+          }
+          return true
         })
       },
     })
