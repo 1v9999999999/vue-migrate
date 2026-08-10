@@ -467,6 +467,11 @@ if (inner === '$route' && result.routeUsed) inner = 'route'
       injected.push(`// --- ${lc.name}() inline ---`)
       injected.push(body)
     } else {
+      // iter-036: 收集 lifecycle import (onMounted/onBeforeMount/onUpdated 等)
+      //   之前漏了,导致输出代码 `onMounted(() => {...})` 引用未定义符号
+      if (result.vueImports && !result.vueImports.has(lc.vueHook)) {
+        result.vueImports.add(lc.vueHook)
+      }
       lines.push(`${lc.vueHook}(() => {\n  ${body}\n})`)
     }
   }

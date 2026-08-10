@@ -25,6 +25,7 @@ export interface IconTransformResult {
   changed: boolean
   changes: string[]
   reviewItems: string[]
+  iconNames: string[]  // iter-036: 收集转换用的 icon component names (CaretTop/Plus/Search 等), 用于自动加 import
 }
 
 const ELEMENT_ICON_MAP: Record<string, string> = {
@@ -92,6 +93,7 @@ export function transformIcons(template: string): IconTransformResult {
   const reviewItems: string[] = []
   const changes: string[] = []
   const edits: TextEdit[] = []
+  const iconNames: string[] = []  // iter-036
 
   // 1. 处理 <i class="el-icon-xxx"> 形式
   // Dedup: only add one review per icon class per file
@@ -107,6 +109,7 @@ export function transformIcons(template: string): IconTransformResult {
     if (!elIconClass) continue
 
     const componentName = getIconComponentName(elIconClass)
+    iconNames.push(componentName)
     const otherClasses = classes.filter((c) => c !== elIconClass)
     // 提取除 class 外的 attributes 文本（保留 v-if / v-else / @click 等）
     const attrTexts: string[] = []
@@ -152,6 +155,7 @@ export function transformIcons(template: string): IconTransformResult {
     if (!iconName.startsWith('el-icon-')) continue
 
     const componentName = getIconComponentName(iconName)
+    iconNames.push(componentName)
     // 用与 editor 相同的算法：算出 removeStart / logicalEnd，把 splice 编码为 TextEdit
     const edit = computeRemoveAttrEdit(template, el, iconAttr)
     if (edit) edits.push(edit)
@@ -162,10 +166,10 @@ export function transformIcons(template: string): IconTransformResult {
   }
 
   if (edits.length === 0) {
-    return { out: template, changed: false, changes, reviewItems }
+    return { out: template, changed: false, changes, reviewItems, iconNames }
   }
 
-  return { out: applyEdits(template, edits), changed: true, changes, reviewItems }
+  return { out: applyEdits(template, edits), changed: true, changes, reviewItems, iconNames }
 }
 
 /**
@@ -240,5 +244,72 @@ export function applyIconTransform(ctx: any, markMessage: string): void {
   const replaced = replaceTemplateContent(ctx.file, result.out, markMessage)
   if (replaced.changed) {
     ctx.utils.markChanged(markMessage)
+    // iter-036: 自动加 `import { Icon1, Icon2, ... } from '@element-plus/icons-vue'`
+    //   之前转换出 <CaretTop /> 但用户必须手动加 import, 这步自动化省心
+    if (result.iconNames.length > 0) {
+      addElementPlusIconsImport(ctx.file, result.iconNames)
+    }
   }
+}
+
+/**
+ * iter-036: 在 .vue 的 <script> 块里加 `import { I1, I2, ... } from '@element-plus/icons-vue'`
+ *   - 如果已存在 named import 从 '@element-plus/icons-vue', 合并 names
+ *   - 否则插入新 import 在第一个 import 后
+ *
+ * 注意: 直接修改 file.scriptAst 是不够的,composition plugin (priority 0, 最后跑)
+ *   会设 file.useRawSource=true 然后 codegen 直接输出 file.source,忽略 scriptAst。
+ *   所以这里要**直接改 file.source 字符串**。
+ */
+function addElementPlusIconsImport(file: any, newNames: string[]): void {
+  const ICONS_PKG = '@element-plus/icons-vue'
+  const unique = Array.from(new Set(newNames))
+  const source: string = file.source
+  if (!source) return
+
+  const importLine = `import { ${unique.join(', ')} } from '${ICONS_PKG}';`
+
+  // 已存在: 合并到现有 named import
+  const existingRegex = /import\s*\{\s*([^}]*?)\s*\}\s*from\s*['"]@element-plus\/icons-vue['"]\s*;?/
+  const m = source.match(existingRegex)
+  if (m) {
+    const have = new Set<string>(
+      m[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    )
+    const addList = unique.filter((n) => !have.has(n))
+    if (addList.length === 0) return  // 都有了
+    const newSpec = [...m[1].split(',').map((s) => s.trim()).filter(Boolean), ...addList].join(', ')
+    const newImport = `import { ${newSpec} } from '${ICONS_PKG}';`
+    file.source = source.replace(existingRegex, newImport)
+    return
+  }
+  // 不存在: 插入到第一个 import 之后
+  // 找 <script ...> 后第一个 import 声明的位置
+  const scriptOpenMatch = source.match(/<script[^>]*>/)
+  if (!scriptOpenMatch) {
+    // 没 script 块, 在文件最前面加
+    file.source = importLine + '\n' + source
+    return
+  }
+  // 找 script 块后第一个 'import ' 行的开头
+  const afterScript = source.indexOf(scriptOpenMatch[0]) + scriptOpenMatch[0].length
+  // 跳过 \n 找到下一行
+  let insertPos = afterScript
+  while (insertPos < source.length && source[insertPos] !== 'i') {
+    // 简单: 找 'import ' 关键字
+    if (source.startsWith('import ', insertPos)) break
+    insertPos++
+  }
+  if (insertPos >= source.length) {
+    // 没 import 关键字, 整个 script 块开头
+    insertPos = afterScript
+    // 跳过 \n
+    while (insertPos < source.length && (source[insertPos] === '\n' || source[insertPos] === '\r')) {
+      insertPos++
+    }
+  }
+  file.source = source.slice(0, insertPos) + importLine + '\n' + source.slice(insertPos)
 }
