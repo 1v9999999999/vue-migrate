@@ -362,12 +362,15 @@ const injected: string[] = []
     if (isTs) {
       injected.unshift(`const props = defineProps<${props.typeString}>()`)
     } else {
-      const propNames = Array.from(props.propNames).join(', ')
+      // JS path: emit a runtime defineProps with the prop names (no type info)
+      // so that props.xxx references in methods/computed actually resolve at runtime.
+      const propNames = Array.from(props.propNames)
+      const objEntries = propNames.map((n) => `${n}: null`).join(', ')
+      injected.unshift(`const props = defineProps({ ${objEntries} })`)
       result.reviewItems.push(
-        `检测到 ${props.propNames.size} 个 props (${propNames})，但 <script> 未声明 lang="ts"。` +
-        `\n请手动改写为 Vue3 运行时 props，例如：` +
-        `\n  const props = defineProps({ ${propNames.split(', ').map(n => `${n}: { type: <VuePropType> }`).join(', ')} })` +
-        `\n模板/computed/methods 中 this.xxx 引用已自动改为 props.xxx (无运行时变化)。`,
+        `检测到 ${propNames.length} 个 props，已生成运行时 defineProps({...})（无 type 校验）。` +
+        `\n建议改为带类型的 defineProps: const props = defineProps({ ${propNames.map((n) => `${n}: { type: <VuePropType>, default: <default> }`).join(', ')} })` +
+        `\n模板/computed/methods 中 this.xxx 引用已自动改为 props.xxx。`,
       )
     }
   }

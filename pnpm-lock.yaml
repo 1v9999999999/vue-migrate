@@ -20,12 +20,27 @@ importers:
       '@vue-migrate/core':
         specifier: workspace:*
         version: link:../core
+      '@vue-migrate/plugin-3rd-party-imports':
+        specifier: workspace:*
+        version: link:../plugins/3rd-party-imports
       '@vue-migrate/plugin-composition':
         specifier: workspace:*
         version: link:../plugins/composition
       '@vue-migrate/plugin-elementui':
         specifier: workspace:*
         version: link:../plugins/elementui
+      '@vue-migrate/plugin-import-cleaner':
+        specifier: workspace:*
+        version: link:../plugins/import-cleaner
+      '@vue-migrate/plugin-package-json':
+        specifier: workspace:*
+        version: link:../plugins/package-json
+      '@vue-migrate/plugin-vite-compat':
+        specifier: workspace:*
+        version: link:../plugins/vite-compat
+      '@vue-migrate/plugin-vue-router-v4':
+        specifier: workspace:*
+        version: link:../plugins/vue-router-v4
       '@vue-migrate/plugin-vue2-compat':
         specifier: workspace:*
         version: link:../plugins/vue2-compat
@@ -41,6 +56,12 @@ importers:
       '@vue-migrate/plugin-vue3-types':
         specifier: workspace:*
         version: link:../plugins/vue3-types
+      '@vue-migrate/plugin-vuex-pinia':
+        specifier: workspace:*
+        version: link:../plugins/vuex-pinia
+      '@vue-migrate/plugin-vxe-table':
+        specifier: workspace:*
+        version: link:../plugins/vxe-table
       commander:
         specifier: ^12.1.0
         version: 12.1.0
@@ -76,6 +97,31 @@ importers:
         specifier: ^3.3.2
         version: 3.3.3
     devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
+  packages/plugins/3rd-party-imports:
+    dependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -120,6 +166,12 @@ importers:
         specifier: workspace:*
         version: link:../../core
     devDependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -165,8 +217,36 @@ importers:
         specifier: ^5.5.0
         version: 5.5.2
 
+  packages/plugins/vite-compat:
+    dependencies:
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
   packages/plugins/vue-router-v4:
     dependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@babel/traverse':
         specifier: ^7.25.0
         version: 7.29.8
@@ -196,6 +276,12 @@ importers:
         specifier: workspace:*
         version: link:../../core
     devDependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -205,6 +291,12 @@ importers:
 
   packages/plugins/vue3-directives:
     dependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@babel/traverse':
         specifier: ^7.25.0
         version: 7.29.8
@@ -259,6 +351,12 @@ importers:
         specifier: workspace:*
         version: link:../../core
     devDependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1

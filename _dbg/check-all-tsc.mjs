@@ -19,6 +19,7 @@ const packages = [
   { name: 'vuex-pinia', path: 'packages/plugins/vuex-pinia/tsconfig.json' },
   { name: 'vxe-table', path: 'packages/plugins/vxe-table/tsconfig.json' },
   { name: 'package-json', path: 'packages/plugins/package-json/tsconfig.json' },
+  { name: 'vite-compat', path: 'packages/plugins/vite-compat/tsconfig.json' },
 ]
 
 let totalErrors = 0

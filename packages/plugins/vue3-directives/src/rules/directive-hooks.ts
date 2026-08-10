@@ -138,4 +138,18 @@ export function applyDirectiveHookRename(
       }
     },
   })
+
+  // 3) `export default { bind, inserted, unbind }` — 整个 export 就是 directive 定义
+  //    这是 directive 模块的常见 pattern: src/directive/xxx/index.js
+  traverse(ast, {
+    ExportDefaultDeclaration(path: any) {
+      const decl = path.node.declaration
+      if (!t.isObjectExpression(decl)) return
+      if (!isDirectiveHookObject(decl)) return
+      const r = renameHooksInObject(decl, utils.markChanged)
+      if (r.changed) {
+        utils.markChanged('export default { bind, ... } directive hooks renamed')
+      }
+    },
+  })
 }

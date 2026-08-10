@@ -135,6 +135,25 @@ export function replaceAttribute(
 }
 
 /**
+ * Modify the raw text of an attribute in place, preserving the same offsets.
+ * Unlike replaceAttribute, this is intended for in-place modifications
+ * (e.g. removing a modifier from a directive's raw name).
+ * The new raw text must be the same length or shorter to keep the surrounding
+ * whitespace intact. If the new text is shorter, the trailing space (if any)
+ * is preserved.
+ */
+export function modifyAttributeRaw(
+  source: string,
+  el: ElementMatch,
+  attr: ParsedAttr,
+  newRaw: string,
+): string {
+  const absStart = attrAbsStart(el, attr)
+  const absEnd = attrAbsEnd(el, attr)
+  return source.slice(0, absStart) + newRaw + source.slice(absEnd)
+}
+
+/**
  * Internal: remove an attribute and intelligently handle adjacent whitespace
  * so the element stays syntactically valid.
  *

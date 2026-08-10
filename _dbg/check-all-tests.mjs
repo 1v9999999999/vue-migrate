@@ -11,11 +11,16 @@ const testFiles = [
   'tools/sample-collector/src/__tests__/classify.test.ts',
   'tools/scheduler/src/__tests__/state-machine.test.ts',
   'packages/plugins/vue3-template/src/__tests__/test-editor.ts',
+  'packages/plugins/vue3-template/src/__tests__/test-native-modifier.ts',
+  'packages/plugins/vue3-template/src/__tests__/test-prefix-icon.ts',
   'packages/plugins/vxe-table/src/__tests__/test-vxe-table.ts',
   'packages/plugins/package-json/src/__tests__/test-package-json.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-remove-vue-import.ts',
   'packages/plugins/composition/src/__tests__/test-lang-output.ts',
   'packages/plugins/import-cleaner/src/__tests__/test-import-cleaner.ts',
+  'packages/plugins/vue3-directives/src/__tests__/test-directive-install-rewrite.ts',
+  'packages/plugins/vue3-directives/src/__tests__/test-directive-vnode-binding.ts',
+  'packages/plugins/vite-compat/src/__tests__/test-vite-compat.ts',
 ]
 
 let totalPass = 0

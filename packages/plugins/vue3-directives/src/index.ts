@@ -32,11 +32,13 @@ import { applyVIfVForWarning } from './rules/template-vif-vfor'
 import { applyValueInputToVModel } from './rules/template-value-input'
 import { applyKeepAliveIncludeArray } from './rules/template-keep-alive'
 import { applyFiltersOptionWarning } from './rules/filters-option'
+import { applyDirectiveInstallRewrite } from './rules/directive-install-rewrite'
+import { applyDirectiveVnodeBindingRewrite } from './rules/directive-vnode-binding'
 
 const plugin: TransformPlugin = {
   name: 'vue3-directives',
   description:
-    'Migrate Vue2 custom directive hooks, template filters, keycode modifiers, v-if+v-for, :value+@input, keep-alive :include to Vue3 idioms.',
+    'Migrate Vue2 custom directive hooks, template filters, keycode modifiers, v-if+v-for, :value+@input, keep-alive :include, install(Vue)→install(app), window.Vue guard cleanup, vnode.context→binding.instance to Vue3 idioms.',
   priority: 30, // 跑在 vue2-compat (10) 之后
 
   fileKinds: ['vue', 'js', 'ts'],
@@ -47,6 +49,8 @@ const plugin: TransformPlugin = {
     // 脚本端 AST 规则 —— 只在有 scriptAst 时跑
     if (file.scriptAst) {
       applyDirectiveHookRename(file, utils)
+      applyDirectiveVnodeBindingRewrite(file, utils)
+      applyDirectiveInstallRewrite(file, utils)
       applyFiltersOptionWarning(file, utils)
     }
 

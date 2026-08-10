@@ -28,6 +28,9 @@ import { rewriteSlots } from './rules/slot-rewriting.js'
 import { rewriteVbindSync } from './rules/vbind-sync.js'
 import { removeInlineTemplate } from './rules/inline-template.js'
 import { migrateScriptInstances } from './rules/script-instances.js'
+import { removeNativeModifier } from './rules/native-modifier.js'
+import { convertPrefixIconToSlot } from './rules/prefix-icon-to-slot.js'
+import { reviewVAttrsVListeners } from './rules/vbind-vattrs-vlisteners.js'
 
 const plugin: TransformPlugin = {
   name: 'vue3-template',
@@ -93,6 +96,42 @@ const plugin: TransformPlugin = {
           if (replaced.changed) {
             template = inlineResult.out
           }
+        }
+
+        // 4. 移除 .native 修饰符
+        const nativeResult = removeNativeModifier(template)
+        if (nativeResult.changed) {
+          for (const c of nativeResult.changes) messages.push(c)
+          for (const r of nativeResult.reviewItems) utils.manualReview(r)
+
+          const replaced = replaceTemplateContent(file, nativeResult.out, '.native modifier removed')
+          if (replaced.changed) {
+            template = nativeResult.out
+          }
+        }
+
+        // 5. prefix-icon="el-icon-xxx" → <template #prefix><el-icon><Xxx /></el-icon></template>
+        const prefixResult = convertPrefixIconToSlot(template)
+        if (prefixResult.changed) {
+          for (const c of prefixResult.changes) messages.push(c)
+          for (const r of prefixResult.reviewItems) utils.manualReview(r)
+
+          const replaced = replaceTemplateContent(file, prefixResult.out, 'prefix-icon → <template #prefix>')
+          if (replaced.changed) {
+            template = prefixResult.out
+          }
+
+          // 记录 icon 组件名，让后续 script 块 import
+          if (prefixResult.iconImports.size > 0) {
+            ;(file as any).__prefixIconImports = prefixResult.iconImports
+          }
+        }
+
+        // 6. v-bind="$attrs" / v-on="$listeners" review 提示
+        const vattrsResult = reviewVAttrsVListeners(template)
+        if (vattrsResult.changed) {
+          for (const c of vattrsResult.changes) messages.push(c)
+          for (const r of vattrsResult.reviewItems) utils.manualReview(r)
         }
       }
     }
