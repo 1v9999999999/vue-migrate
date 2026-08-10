@@ -54,8 +54,12 @@ const plugin: TransformPlugin = {
   transform(ctx: TransformContext) {
     if (!ctx.file.sfc?.script)
     return
+
+    // iter-046: <script setup> 已经有 script, 但里面可能直接用 props.X / emit('X', ...) 而没
+    //   defineProps / defineEmits. 在这里扫描一下, 缺啥补啥 (不重写 setup body, 只插入声明)
     if (ctx.file.sfc.script.attrs?.setup) {
-      ctx.utils.manualReview('已存在 <script setup>，跳过 Options→Composition 转换')
+      maybeInjectDefinePropsEmitsForExistingSetup(ctx)
+      ctx.utils.manualReview('已存在 <script setup>，跳过 Options→Composition 转换 (但已扫描 props.X / emit() 注入 defineProps / defineEmits)')
       return
     }
 
@@ -174,6 +178,109 @@ function resyncScriptLoc(file: any): void {
   file.sfc.script.loc.start.offset = scriptOpenEnd
   file.sfc.script.loc.end.offset = scriptCloseIdx
   file.sfc.script.content = source.slice(scriptOpenEnd, scriptCloseIdx)
+}
+
+/**
+ * iter-046: 对已存在的 `<script setup>` 文件, 扫描 setup body 中对 props.X / emit('X', ...) 的
+ *   引用, 如果缺 defineProps / defineEmits 就插入 (从引用推断 prop 名字 + event 名字).
+ *
+ * 适用场景:
+ *   - 用户写组件时直接用 <script setup>, 没 defineProps / defineEmits
+ *   - 父级用 v-model 传 prop, 子级靠 props.foo 接收 — 没 declare props 时 props 是 undefined, 报错
+ *   - 子级 emit('update:xxx', ...) 没 declare, 报 emit is not a function
+ *
+ * 策略:
+ *   1. 扫 setup body, 找所有 `props.X` 引用, X 加入 propNames
+ *   2. 扫 setup body, 找所有 `emit('X', ...)` 字符串字面量, X 加入 emitNames
+ *   3. 如果 propNames 非空 + 文件里没 defineProps, 注入 `const props = defineProps({ X: null, Y: null, ... })`
+ *   4. 如果 emitNames 非空 + 文件里没 defineEmits, 注入 `const emit = defineEmits(['X', 'Y', ...])`
+ *   5. 注入位置: 文件第一个 import 之后 (避免被放在文件头前)
+ *
+ * 限制: 我们不试图推断 prop type (JS setup 没法用泛型), 只插 null 占位 — 用户手改.
+ */
+function maybeInjectDefinePropsEmitsForExistingSetup(ctx: TransformContext): void {
+  const { file, utils } = ctx
+  const source = file.source
+  if (!source) return
+
+  // 1. 找 <script setup> 块的范围
+  const scriptOpenMatch = source.match(/<script\b[^>]*>/i)
+  if (!scriptOpenMatch || scriptOpenMatch.index === undefined) return
+  const scriptOpenEnd = scriptOpenMatch.index + scriptOpenMatch[0].length
+  const scriptCloseIdx = source.indexOf('</script>', scriptOpenEnd)
+  if (scriptCloseIdx < 0) return
+  const scriptInner = source.substring(scriptOpenEnd, scriptCloseIdx)
+
+  // 2. 找 setup body — 跳过 import 语句, 找顶层非 import 代码
+  //    简化: 我们就扫整段 scriptInner, 跳过 import line
+  const linesForScan = scriptInner
+    .split('\n')
+    .filter((l) => !/^\s*import\b/.test(l))
+    .join('\n')
+
+  // 3. 收集 prop 名字: `props.X` 形式
+  const propNames = new Set<string>()
+  for (const m of linesForScan.matchAll(/\bprops\.([a-zA-Z_]\w*)\b/g)) {
+    // 排除 `props.something` 里的 something 是 builtin (props.constructor, props.toString 等)
+    if (m[1] !== 'constructor' && m[1] !== 'toString' && m[1] !== 'hasOwnProperty' &&
+        m[1] !== 'valueOf' && m[1] !== '__proto__' && m[1] !== '__defineGetter__' &&
+        m[1] !== '__defineSetter__' && m[1] !== '__lookupGetter__' && m[1] !== '__lookupSetter__') {
+      propNames.add(m[1])
+    }
+  }
+
+  // 4. 收集 emit 事件名: `emit('X', ...)` 字符串字面量
+  const emitNames = new Set<string>()
+  for (const m of linesForScan.matchAll(/\bemit\s*\(\s*(['"`])([^'"`]+)\1/g)) {
+    emitNames.add(m[2])
+  }
+
+  // 5. 检查文件是否已有 defineProps / defineEmits
+  const hasDefineProps = /\bdefineProps\s*[(<]/.test(scriptInner)
+  const hasDefineEmits = /\bdefineEmits\s*[(<]/.test(scriptInner)
+
+  // 6. 准备要插入的代码
+  const insertLines: string[] = []
+  if (propNames.size > 0 && !hasDefineProps) {
+    const entries = Array.from(propNames).sort().map((n) => `${n}: null`).join(', ')
+    insertLines.push(`const props = defineProps({ ${entries} })`)
+    utils.manualReview(
+      `iter-046: 检测到 setup body 引用 props.${Array.from(propNames).join(', ')}, 但文件没 declare defineProps。` +
+      `\n已自动注入 const props = defineProps({ ${entries} })。请补 type/default (e.g. ${Array.from(propNames)[0]}: { type: String, default: '' })。`,
+    )
+  }
+  if (emitNames.size > 0 && !hasDefineEmits) {
+    const evs = Array.from(emitNames).sort().map((n) => `'${n}'`).join(', ')
+    insertLines.push(`const emit = defineEmits([${evs}])`)
+    utils.manualReview(
+      `iter-046: 检测到 setup body 引用 emit('${Array.from(emitNames).join("', '")}'), 但文件没 declare defineEmits。` +
+      `\n已自动注入 const emit = defineEmits([${evs}])。`,
+    )
+  }
+
+  if (insertLines.length === 0) return
+
+  // 7. 插入位置: 最后一个 import 之后, 第一个非 import 之前
+  const lastImportMatch = [...scriptInner.matchAll(/^[ \t]*import\b[^\n]+/gm)].pop()
+  if (lastImportMatch && lastImportMatch.index !== undefined) {
+    const insertPos = scriptOpenEnd + lastImportMatch.index + lastImportMatch[0].length
+    const newSource =
+      source.substring(0, insertPos) +
+      '\n\n' + insertLines.join('\n') +
+      source.substring(insertPos)
+    file.source = newSource
+    file.useRawSource = true
+    utils.markChanged(`[composition:setup] 注入 defineProps/defineEmits (${propNames.size} props, ${emitNames.size} events)`)
+  } else {
+    // 没 import — 加在 setup 顶部
+    const newSource =
+      source.substring(0, scriptOpenEnd) +
+      '\n' + insertLines.join('\n') + '\n' +
+      source.substring(scriptOpenEnd)
+    file.source = newSource
+    file.useRawSource = true
+    utils.markChanged(`[composition:setup] 注入 defineProps/defineEmits (${propNames.size} props, ${emitNames.size} events)`)
+  }
 }
 
 function findExportDefaultBlock(scriptText: string): ExportMatch | null {

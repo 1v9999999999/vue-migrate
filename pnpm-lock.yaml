@@ -35,6 +35,9 @@ importers:
       '@vue-migrate/plugin-package-json':
         specifier: workspace:*
         version: link:../plugins/package-json
+      '@vue-migrate/plugin-store-bridge':
+        specifier: workspace:*
+        version: link:../plugins/store-bridge
       '@vue-migrate/plugin-vite-compat':
         specifier: workspace:*
         version: link:../plugins/vite-compat
@@ -206,6 +209,31 @@ importers:
 
   packages/plugins/package-json:
     dependencies:
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
+  packages/plugins/store-bridge:
+    dependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@vue-migrate/core':
         specifier: workspace:*
         version: link:../../core

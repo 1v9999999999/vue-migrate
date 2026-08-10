@@ -17,11 +17,13 @@ const testFiles = [
   'packages/plugins/package-json/src/__tests__/test-package-json.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-remove-vue-import.ts',
   'packages/plugins/composition/src/__tests__/test-lang-output.ts',
+  'packages/plugins/composition/src/__tests__/test-define-emits.ts',
   'packages/plugins/composition/src/__tests__/test-merge-imports.ts',
   'packages/plugins/import-cleaner/src/__tests__/test-import-cleaner.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-install-rewrite.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-vnode-binding.ts',
   'packages/plugins/vite-compat/src/__tests__/test-vite-compat.ts',
+  'packages/plugins/store-bridge/src/__tests__/test-store-bridge.ts',
 ]
 
 let totalPass = 0

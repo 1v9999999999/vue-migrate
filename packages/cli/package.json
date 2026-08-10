@@ -19,6 +19,7 @@
     "@vue-migrate/plugin-composition": "workspace:*",
     "@vue-migrate/plugin-vue-router-v4": "workspace:*",
     "@vue-migrate/plugin-vuex-pinia": "workspace:*",
+    "@vue-migrate/plugin-store-bridge": "workspace:*",
     "@vue-migrate/plugin-vxe-table": "workspace:*",
     "@vue-migrate/plugin-3rd-party-imports": "workspace:*",
     "@vue-migrate/plugin-package-json": "workspace:*",

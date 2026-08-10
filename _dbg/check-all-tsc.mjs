@@ -17,6 +17,7 @@ const packages = [
   { name: 'vue3-template', path: 'packages/plugins/vue3-template/tsconfig.json' },
   { name: 'vue3-types', path: 'packages/plugins/vue3-types/tsconfig.json' },
   { name: 'vuex-pinia', path: 'packages/plugins/vuex-pinia/tsconfig.json' },
+  { name: 'store-bridge', path: 'packages/plugins/store-bridge/tsconfig.json' },
   { name: 'vxe-table', path: 'packages/plugins/vxe-table/tsconfig.json' },
   { name: 'package-json', path: 'packages/plugins/package-json/tsconfig.json' },
   { name: 'vite-compat', path: 'packages/plugins/vite-compat/tsconfig.json' },

@@ -7,6 +7,7 @@
  * - 重写后必须能再次解析（自检）
  */
 
+// @ts-ignore -- @babel/generator has no built-in .d.ts; this is dev-only code
 import _generate from '@babel/generator'
 import { parse as parseSfcForCheck } from '@vue/compiler-sfc'
 import { parse as parseBabelForCheck } from '@babel/parser'

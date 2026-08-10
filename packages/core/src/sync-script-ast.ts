@@ -16,6 +16,7 @@
  * 这是 import-cleaner raw-source 路径的镜像, 改的不是 file.source 字符串
  * offset 整体, 而是 replace <script>...</script> 整段。
  */
+// @ts-ignore -- @babel/generator has no built-in .d.ts; this is dev-only code
 import _generate from '@babel/generator'
 import * as t from '@babel/types'
 import type { FileNode } from './types.js'

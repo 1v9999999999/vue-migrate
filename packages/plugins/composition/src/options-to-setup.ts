@@ -52,6 +52,8 @@ export interface OptionsToSetupResult {
   routerUsed: boolean
   storeUsed: boolean
   emitUsed: boolean
+  /** iter-046: emit event names 收集自 this.$emit('X', ...) 调用,用于生成 defineEmits(['X', ...]) */
+  emitNames: Set<string>
   hasProps: boolean
   propsTypeString: string
   /** True when the source <script> declared lang="ts"; controls whether
@@ -117,6 +119,10 @@ interface PropsInfo {
   hasProps: boolean
   typeString: string
   propNames: Set<string>
+  /** iter-046: 原始 prop-options 源码 (e.g. `{type: String, default: 'hi'}`) for runtime defineProps
+   *  key: prop name, value: 原始 value 表达式 source. 缺失则 null/undefined.
+   */
+  runtimeOptions: Map<string, string>
 }
 
 const RESERVED_FIELD_NAMES = new Set(['new', 'class', 'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while'])
@@ -176,6 +182,7 @@ export function convertOptionsToSetup(
     routerUsed: false,
     storeUsed: false,
     emitUsed: false,
+    emitNames: new Set(),
     hasProps: false,
     propsTypeString: '{}',
     isTs: false,
@@ -303,6 +310,11 @@ const injected: string[] = []
       else if (name === 'nextTick') hasNextTick = true
       else if (name === 'emit') hasEmit = true
     }
+    // iter-046: 收集 emit 事件名 (this.$emit('eventName', ...) 形式)
+    //   用于生成 defineEmits(['eventName1', 'eventName2', ...])
+    for (const tok of b.matchAll(/this\.\$emit\s*\(\s*(['"`])([^'"`]+)\1/g)) {
+      result.emitNames.add(tok[2])
+    }
   }
   // 2.0.1 simultaneously check whether watch key contains $route / $router / $store (no `this.` prefix)
   //      e.g. `watch: { $route() { ... } }` is Vue2 syntax
@@ -343,7 +355,26 @@ const injected: string[] = []
     result.extraImports.push("import { nextTick } from 'vue'")
   }
   if (hasEmit && !result.extraImports.includes("const emit = defineEmits<any>()")) {
-    injected.push(isTs ? 'const emit = defineEmits<any>()' : 'const emit = defineEmits()')
+    // iter-046: 优先用收集到的 emit 事件名, 而不是空 defineEmits()
+    if (result.emitNames.size > 0) {
+      const eventNames = Array.from(result.emitNames).sort()
+      if (isTs) {
+        // TS:  defineEmits<{ eventName: any[] }>()
+        // 注意: payload 签名是 any[] 表示任意 args,无法精准推断. 用户可以后续改
+        const tsSig = eventNames.map((n) => `${n}: any[]`).join('; ')
+        injected.push(`const emit = defineEmits<{${tsSig}}>()`)
+      } else {
+        // JS:  defineEmits(['eventName1', 'eventName2'])
+        injected.push(`const emit = defineEmits([${eventNames.map((n) => `'${n}'`).join(', ')}])`)
+      }
+      result.reviewItems.push(
+        `检测到 ${eventNames.length} 个 emit 事件 (${eventNames.join(', ')}),已自动生成 defineEmits(...) 包含这些事件。` +
+        `\n事件 payload 类型是 any[](无精准推断), 如果需要可在 setup 里改成精确类型: e.g. const emit = defineEmits<{ update: [id: number]; close: [] }>()`,
+      )
+    } else {
+      // 兜底: 有 emit 但收集不到具体名字 (例如用户用了变量 emit('foo' + 'bar') 等动态)
+      injected.push(isTs ? 'const emit = defineEmits<any>()' : 'const emit = defineEmits()')
+    }
   }
   // 2.0.3 sync to result.*Used (for watch key translation, replaceThisInBody and other subsequent steps)
   if (hasRoute) result.routeUsed = true
@@ -362,14 +393,26 @@ const injected: string[] = []
     if (isTs) {
       injected.unshift(`const props = defineProps<${props.typeString}>()`)
     } else {
-      // JS path: emit a runtime defineProps with the prop names (no type info)
-      // so that props.xxx references in methods/computed actually resolve at runtime.
+      // JS path: 尽量从 props: { X: { type: Y, default: Z } } 提取原始 runtime options
+      //   - 如果 source 里有完整 prop-options 对象, 用它 (保留 type + default)
+      //   - 如果 source 里有 type 标识符 (e.g. `title: String`), 包装成 `{ type: String }`
+      //   - 都没就 fallback 到 null
       const propNames = Array.from(props.propNames)
-      const objEntries = propNames.map((n) => `${n}: null`).join(', ')
+      const objEntries = propNames.map((n) => {
+        const opt = props.runtimeOptions.get(n)
+        if (opt) return `${n}: ${opt}`
+        return `${n}: null`
+      }).join(', ')
       injected.unshift(`const props = defineProps({ ${objEntries} })`)
+      const propsWithType = propNames.filter((n) => props.runtimeOptions.has(n))
+      const propsWithoutType = propNames.filter((n) => !props.runtimeOptions.has(n))
+      const reviewMsg = props.runtimeOptions.size > 0
+        ? `已尽量保留原始 type/default 配置 (来自 props: { ${propsWithType.join(': { type: ..., default: ... }, ')} })。` +
+          `\n缺 type 信息的 prop: ${propsWithoutType.join(', ') || '(none)'} - 已用 null 占位, 请补 default 防止 undefined 警告。`
+        : `部分 prop 没有 type/default, 已用 null 占位, 建议改为 { type: ..., default: ... }。`
       result.reviewItems.push(
-        `检测到 ${propNames.length} 个 props，已生成运行时 defineProps({...})（无 type 校验）。` +
-        `\n建议改为带类型的 defineProps: const props = defineProps({ ${propNames.map((n) => `${n}: { type: <VuePropType>, default: <default> }`).join(', ')} })` +
+        `检测到 ${propNames.length} 个 props，已生成运行时 defineProps({...})。` +
+        `\n${reviewMsg}` +
         `\n模板/computed/methods 中 this.xxx 引用已自动改为 props.xxx。`,
       )
     }
@@ -1138,17 +1181,18 @@ function parseProps(obj: any, result: OptionsToSetupResult): PropsInfo {
   // Parse props option to determine prop names + generate defineProps type
   const propNames = new Set<string>()
   const propTypes: string[] = []
+  const runtimeOptions = new Map<string, string>()
   const propsProp = obj.properties.find((p: any) =>
     (t.isObjectProperty(p) || t.isObjectMethod(p)) && t.isIdentifier(p.key) && p.key.name === 'props'
   )
   if (!propsProp) {
-    return { hasProps: false, typeString: '{}', propNames }
+    return { hasProps: false, typeString: '{}', propNames, runtimeOptions }
   }
 
   let propsList: any[] = []
   if (t.isObjectMethod(propsProp)) {
     // props: { title: String, ... }  (ObjectMethod with this.props? No, props is just an ObjectExpression)
-    return { hasProps: false, typeString: '{}', propNames }
+    return { hasProps: false, typeString: '{}', propNames, runtimeOptions }
   } else if (t.isArrayExpression(propsProp.value)) {
     // props: ['title', 'count']
     for (const el of propsProp.value.elements) {
@@ -1167,14 +1211,22 @@ function parseProps(obj: any, result: OptionsToSetupResult): PropsInfo {
       const val = p.value
       let tsType = 'any'
       if (t.isIdentifier(val)) {
+        // props: { title: String } — 直接用 identifier 名字当 type
         const map: Record<string, string> = {
           String: 'string', Number: 'number', Boolean: 'boolean',
           Array: 'any[]', Object: 'Record<string, any>', Function: '(...args: any[]) => any',
           Date: 'Date', Symbol: 'symbol',
         }
         tsType = map[val.name] || 'any'
+        // 保留 runtimeOptions: 直接拿 identifier 名字
+        if ((val as any).start != null && (val as any).end != null) {
+          runtimeOptions.set(key, generate(val).code)
+        }
       } else if (t.isArrayExpression(val)) {
         tsType = 'any[]'
+        if ((val as any).start != null && (val as any).end != null) {
+          runtimeOptions.set(key, generate(val).code)
+        }
       } else if (t.isObjectExpression(val)) {
         const typeProp = val.properties.find((q: any) => t.isObjectProperty(q) && t.isIdentifier(q.key) && q.key.name === 'type')
         if (typeProp && t.isObjectProperty(typeProp)) {
@@ -1188,6 +1240,10 @@ function parseProps(obj: any, result: OptionsToSetupResult): PropsInfo {
           } else if (t.isArrayExpression(typePropValue)) {
             tsType = 'any[]'
           }
+        }
+        // 保留整个 object expression 当 runtimeOptions
+        if ((val as any).start != null && (val as any).end != null) {
+          runtimeOptions.set(key, generate(val).code)
         }
       }
       const requiredProp = (val as any).properties?.find?.((q: any) => t.isObjectProperty(q) && t.isIdentifier(q.key) && q.key.name === 'required' && (q.value as any).value === true)
@@ -1206,6 +1262,7 @@ function parseProps(obj: any, result: OptionsToSetupResult): PropsInfo {
     hasProps: propNames.size > 0,
     typeString,
     propNames,
+    runtimeOptions,
   }
 }
 
