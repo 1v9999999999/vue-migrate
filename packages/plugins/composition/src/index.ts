@@ -340,7 +340,8 @@ function mergeImports(beforeText: string, extras: string[]): string[] {
 
   // 1. import statements in beforeText
   //    note: script may mix \r\n (Windows) and \n (Unix) line endings
-  const importRe = /^[ \t]*import\s+[^;]+;?[ \t]*$/gm
+  //    注意: 用 [^\n]+ 而不是 [^;]+ 避免贪婪匹配吞掉后续行
+  const importRe = /^[ \t]*import\s+[^\n]+$/gm
   let m: RegExpExecArray | null
   while ((m = importRe.exec(beforeText))) {
     const imp = m[0].replace(/\r$/, '').trim()
