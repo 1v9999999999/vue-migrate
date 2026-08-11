@@ -28,6 +28,8 @@ const testFiles = [
   'packages/plugins/3rd-party-imports/src/__tests__/test-3rd-party-iter048a.ts',
   'packages/plugins/vite-compat/src/__tests__/test-vite-compat.ts',
   'packages/plugins/store-bridge/src/__tests__/test-store-bridge.ts',
+  'packages/plugins/vite-scaffold/src/__tests__/test-vite-scaffold.ts',
+  'packages/plugins/resource-copier/src/__tests__/test-resource-copier.ts',
 ]
 
 let totalPass = 0

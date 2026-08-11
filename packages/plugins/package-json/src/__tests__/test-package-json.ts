@@ -482,6 +482,89 @@ console.log('\n[F5: copyDir]')
   rmSync(destRoot, { recursive: true, force: true })
 }
 
+// ============ iter-050a: projectNeedsElementPlusIcons ============
+console.log('\n[iter-050a P0#4: projectNeedsElementPlusIcons]')
+
+{
+  const { _testable } = await import('../index.js')
+  assertTrue('有 element-plus 触发', _testable.projectNeedsElementPlusIcons({ dependencies: { 'element-plus': '^2.4.0' } }))
+  assertTrue('有 element-plus + 其他 deps 触发', _testable.projectNeedsElementPlusIcons({ dependencies: { 'element-plus': '^2.4.0', 'vue': '^3.0.0' } }))
+  assertTrue('无 element-plus 不触发', !_testable.projectNeedsElementPlusIcons({ dependencies: { 'vue': '^2.6.0' } }))
+  assertTrue('无 dependencies 不触发', !_testable.projectNeedsElementPlusIcons({}))
+  assertTrue('element-ui (老) 不触发', !_testable.projectNeedsElementPlusIcons({ dependencies: { 'element-ui': '^2.13.0' } }))
+  assertTrue('已有 icons-vue 不重复 (但仍 true, 由调用方决定是否再加)', _testable.projectNeedsElementPlusIcons({ dependencies: { 'element-plus': '^2.4.0', '@element-plus/icons-vue': '^2.3.0' } }))
+}
+
+// ============ iter-050a: projectImportsElementPlusIcons ============
+console.log('\n[iter-050a P0#4: @element-plus/icons-vue 扫 import]')
+
+{
+  const { _testable } = await import('../index.js')
+  // 模拟一个 ProjectContext.files (用 Map<string, FileNode>)
+  function mockCtx(sources: Record<string, string>): any {
+    const files = new Map<string, any>()
+    for (const [path, source] of Object.entries(sources)) {
+      files.set(path, { path, source })
+    }
+    return { files, root: '/x' }
+  }
+
+  // 1) 没引用 → false
+  {
+    const ctx = mockCtx({
+      'a.vue': '<template><div></div></template>',
+      'b.js': 'import lodash from "lodash"',
+    })
+    assertTrue('无 icons-vue 引用 = false', !_testable.projectImportsElementPlusIcons(ctx))
+  }
+
+  // 2) 一个 .vue 引用 → true
+  {
+    const ctx = mockCtx({
+      'src/views/zip/index.vue': '<script setup>\nimport { Document } from "@element-plus/icons-vue"\n</script>',
+    })
+    assertTrue('vue 文件 import icons-vue = true', _testable.projectImportsElementPlusIcons(ctx))
+  }
+
+  // 3) 一个 .js 引用 → true
+  {
+    const ctx = mockCtx({
+      'src/utils/icon.js': 'const { Upload } = require("@element-plus/icons-vue")',
+    })
+    assertTrue('js 文件 require icons-vue = true', _testable.projectImportsElementPlusIcons(ctx))
+  }
+
+  // 4) import.meta.glob 形式 → true
+  {
+    const ctx = mockCtx({
+      'src/icons/index.js': 'const m = import.meta.glob("@element-plus/icons-vue/*")',
+    })
+    assertTrue('import.meta.glob icons-vue = true', _testable.projectImportsElementPlusIcons(ctx))
+  }
+
+  // 5) 多个文件, 至少一个引用 → true
+  {
+    const ctx = mockCtx({
+      'a.vue': '<template></template>',
+      'b.js': 'const x = 1',
+      'c.ts': 'import { CaretBottom } from "@element-plus/icons-vue"',
+    })
+    assertTrue('混合文件, 1 个引用 = true', _testable.projectImportsElementPlusIcons(ctx))
+  }
+
+  // 6) 空 ctx → false
+  {
+    const ctx: any = { files: new Map(), root: '/x' }
+    assertTrue('空 files = false', !_testable.projectImportsElementPlusIcons(ctx))
+  }
+
+  // 7) 只有 source 为空的 file → false
+  {
+    const ctx = mockCtx({ 'a.vue': '' })
+    assertTrue('空 source = false', !_testable.projectImportsElementPlusIcons(ctx))
+  }
+}
+
 // ============ 总结 ============
 console.log(`\ntests ${pass + fail} pass ${pass} fail ${fail}`)
 if (fail > 0) {

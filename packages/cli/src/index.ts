@@ -25,6 +25,8 @@ import '@vue-migrate/plugin-3rd-party-imports'
 import '@vue-migrate/plugin-package-json'
 import '@vue-migrate/plugin-import-cleaner'
 import '@vue-migrate/plugin-vite-compat'
+import '@vue-migrate/plugin-vite-scaffold'
+import '@vue-migrate/plugin-resource-copier'
 
 const program = new Command()
 

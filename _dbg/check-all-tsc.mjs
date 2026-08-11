@@ -21,6 +21,8 @@ const packages = [
   { name: 'vxe-table', path: 'packages/plugins/vxe-table/tsconfig.json' },
   { name: 'package-json', path: 'packages/plugins/package-json/tsconfig.json' },
   { name: 'vite-compat', path: 'packages/plugins/vite-compat/tsconfig.json' },
+  { name: 'vite-scaffold', path: 'packages/plugins/vite-scaffold/tsconfig.json' },
+  { name: 'resource-copier', path: 'packages/plugins/resource-copier/tsconfig.json' },
 ]
 
 let totalErrors = 0

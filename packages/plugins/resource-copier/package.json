@@ -1,0 +1,15 @@
+{
+  "name": "@vue-migrate/plugin-resource-copier",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Scan project files for style @import + import.meta.glob + static asset references. Copy referenced non-code assets (scss/css/svg/icons) to outDir. (iter-050a P0 #6/#7/#8).",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

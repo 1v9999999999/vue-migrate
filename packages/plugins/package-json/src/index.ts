@@ -39,10 +39,40 @@ interface PkgJson {
   [key: string]: any
 }
 
+/**
+ * iter-050a: P0 #4 — 扫所有 file 找 import 引用了 @element-plus/icons-vue, 自动注入到 dependencies
+ *  - 不依赖 package.json 里是否有 element-plus (一些项目可能没装但 import 了, 我们仍注入)
+ *  - 扫 import 语句 + import.meta.glob 模式
+ *  - 用 ctx.files 缓存(已经 parse 过 source), 不重新 IO
+ *
+ *  注意: 用 String.includes 而不是 /.../g, 避免全局 regex lastIndex 跨调用残留
+ */
+function projectImportsElementPlusIcons(ctx: ProjectContext): boolean {
+  for (const file of ctx.files.values()) {
+    if (!file.source) continue
+    if (file.source.includes('@element-plus/icons-vue')) {
+      return true
+    }
+  }
+  return false
+}
+
 function isVue2Project(pkg: PkgJson): boolean {
   const vue = pkg?.dependencies?.['vue']
   if (typeof vue !== 'string') return false
   return /^[\^~]?2\./.test(vue) || /^2\./.test(vue)
+}
+
+/**
+ * iter-050a P0 #4: 项目迁移到 element-plus 后, 需要 @element-plus/icons-vue (用于 el-icon 组件)
+ *  - 源项目是 element-ui (没这个包), 转换后才有 element-plus
+ *  - transform 阶段会把 el-icon-name 改成 <el-icon><Name /></el-icon>, Name 来自 icons-vue
+ *  - 所以: 一旦 deps 有 element-plus, 就注入 icons-vue
+ *  - 这个比 projectImportsElementPlusIcons 更稳 (后者看不到 transform 后的代码)
+ */
+function projectNeedsElementPlusIcons(pkg: PkgJson): boolean {
+  if (!pkg.dependencies) return false
+  return 'element-plus' in pkg.dependencies
 }
 
 function transformPackageJson(pkg: PkgJson): { changes: string[]; changed: boolean } {
@@ -155,10 +185,20 @@ const plugin: TransformPlugin = {
     }
 
     const result = transformPackageJson(pkg)
+
+    // iter-050a P0 #4: 注入 @element-plus/icons-vue (在 transform 之后, 因为 transform 会重写 pkg.dependencies)
+    const iconsDepsAdded: string[] = []
+    if (projectNeedsElementPlusIcons(pkg) || projectImportsElementPlusIcons(ctx)) {
+      if (!pkg.dependencies) pkg.dependencies = {}
+      if (!pkg.dependencies['@element-plus/icons-vue']) {
+        pkg.dependencies['@element-plus/icons-vue'] = '^2.3.0'
+        iconsDepsAdded.push(`@element-plus/icons-vue@^2.3.0`)
+      }
+    }
     // F5: 即使 package.json 没改,也可能要 copy styles
     const stylesCopied = await this_maybeCopyStyles(ctx)
 
-    if (!result.changed && stylesCopied.files === 0) {
+    if (!result.changed && stylesCopied.files === 0 && iconsDepsAdded.length === 0) {
       return
     }
 
@@ -172,6 +212,7 @@ const plugin: TransformPlugin = {
       if (stylesCopied.files > 0) {
         console.log(`  · [F5] 计划复制 ${stylesCopied.files} 个 styles 文件到 outDir`)
       }
+      for (const d of iconsDepsAdded) console.log(`  · [P0#4] 注入 dependencies.${d}`)
       return
     }
 
@@ -197,6 +238,7 @@ const plugin: TransformPlugin = {
     if (stylesCopied.files > 0) {
       console.log(`  · [F5] 已复制 ${stylesCopied.files} 个 styles 文件到 outDir/src/styles/`)
     }
+    for (const d of iconsDepsAdded) console.log(`  · [P0#4] 注入 dependencies.${d}`)
   },
 }
 
@@ -229,3 +271,11 @@ async function this_maybeCopyStyles(
 
 registerPlugin(plugin)
 export default plugin
+
+// 暴露给单测
+export const _testable = {
+  isVue2Project,
+  transformPackageJson,
+  projectImportsElementPlusIcons,
+  projectNeedsElementPlusIcons,
+}

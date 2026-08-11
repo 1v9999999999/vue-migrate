@@ -1,0 +1,15 @@
+{
+  "name": "@vue-migrate/plugin-vite-scaffold",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Scaffold Vite-era project root: generate vite.config.js, index.html, public/ + favicon when the converted package.json uses vite but the runtime assets are missing (iter-049a P0 #1/#2/#3).",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
