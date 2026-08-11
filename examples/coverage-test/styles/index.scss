@@ -1,0 +1,47 @@
+// =====================================================================
+// index.scss - 主样式入口 (真实项目用这个文件串联所有样式)
+// 在 main.js 用 import '@/styles/index.scss' 引入
+// =====================================================================
+
+// 1. 第三方 (先重置, 再覆盖)
+@use './reset.css';
+
+// 2. 变量 (要先, 后面的 mixin/function 引用)
+@use './variables.scss';
+@use './functions.scss';
+
+// 3. mixin (可被其他文件 @import)
+@use './mixins.scss';
+
+// 4. 主题 (CSS 变量, 全局)
+@use './_theme-light.scss';
+@use './_theme-dark.scss';
+@use './_theme-hc.scss';
+
+// 5. 工具类
+@use './utilities.scss';
+
+// 6. 排版
+@use './typography.styl';
+
+// 7. 动画
+@use './animations.scss';
+
+// 8. 过渡 (Vue transition)
+@use './transitions.scss';
+
+// 9. 响应式
+@use './responsive.scss';
+
+// 10. 打印
+@use './print.scss';
+
+// 11. 无障碍
+@use './a11y.scss';
+
+// 12. UI 库覆盖 (放在最后, 优先级最高)
+@use './element-overrides.scss';
+@use './ant-overrides.less';
+
+// 13. Tailwind 原子 (可选, 跟 utilities 重叠, 后者赢)
+@use './tailwind.css';

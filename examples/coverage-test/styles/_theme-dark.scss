@@ -1,0 +1,58 @@
+// =====================================================================
+// _theme-dark.scss - 深色主题
+// =====================================================================
+
+[data-theme='dark'] {
+  // 颜色 (主色保留, 提亮)
+  --color-primary: #177ddc;
+  --color-primary-hover: #3c9ae8;
+  --color-primary-active: #1456b8;
+  --color-primary-bg: #111a2c;
+
+  --color-success: #49aa19;
+  --color-warning: #d89614;
+  --color-danger:  #dc4446;
+  --color-info:    #8c8c8c;
+
+  // 文字 (反色)
+  --text-primary:   rgba(255, 255, 255, 0.85);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-tertiary:  rgba(255, 255, 255, 0.45);
+  --text-disabled:  rgba(255, 255, 255, 0.25);
+  --text-inverse:   rgba(0, 0, 0, 0.85);
+
+  // 背景 (反色)
+  --bg-base:    #141414;
+  --bg-light:   #1d1d1d;
+  --bg-lighter: #262626;
+  --bg-dark:    #000000;
+  --bg-mask:    rgba(0, 0, 0, 0.65);
+
+  // 边框 (反色)
+  --border-base:    #434343;
+  --border-light:   #303030;
+  --border-lighter: #262626;
+
+  // 阴影 (深色版, 更深)
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-base: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+// 深色主题类
+.theme-dark {
+  background: var(--bg-base);
+  color: var(--text-primary);
+
+  .card {
+    background: var(--bg-light);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-md);
+  }
+
+  // 自动反色图片
+  img {
+    filter: brightness(0.8);
+  }
+}

@@ -1,0 +1,96 @@
+// =====================================================================
+// variables.scss - 全局 SCSS 变量
+// 由 vite.config.js / vue.config.js 的 css.preprocessorOptions.additionalData 自动注入
+// =====================================================================
+
+// 颜色 (基础)
+$color-primary: #1890ff;
+$color-success: #52c41a;
+$color-warning: #faad14;
+$color-danger:  #ff4d4f;
+$color-info:    #909399;
+
+// 颜色 (文字)
+$text-primary:   rgba(0, 0, 0, 0.85);
+$text-secondary: rgba(0, 0, 0, 0.65);
+$text-tertiary:  rgba(0, 0, 0, 0.45);
+$text-disabled:  rgba(0, 0, 0, 0.25);
+
+// 颜色 (背景)
+$bg-base:    #ffffff;
+$bg-light:   #fafafa;
+$bg-lighter: #f5f5f5;
+$bg-dark:    #1f1f1f;
+
+// 颜色 (边框)
+$border-base:    #d9d9d9;
+$border-light:   #f0f0f0;
+$border-lighter: #f5f5f5;
+
+// 字体
+$font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+  'Helvetica Neue', Arial, 'PingFang SC', 'Hiragino Sans GB',
+  'Microsoft YaHei', sans-serif;
+$font-family-code: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo,
+  'Courier New', monospace;
+$font-size-base:  14px;
+$font-size-sm:    12px;
+$font-size-lg:    16px;
+$font-size-xl:    20px;
+$font-size-2xl:   24px;
+
+// 字重
+$font-weight-light:    300;
+$font-weight-normal:   400;
+$font-weight-medium:   500;
+$font-weight-semibold: 600;
+$font-weight-bold:     700;
+
+// 间距
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-2xl: 48px;
+
+// 圆角
+$radius-sm:   2px;
+$radius-base:  4px;
+$radius-md:   6px;
+$radius-lg:   8px;
+$radius-xl:   12px;
+$radius-full: 9999px;
+
+// 阴影
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-base: 0 2px 8px rgba(0, 0, 0, 0.08);
+$shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
+$shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+$shadow-xl: 0 12px 48px rgba(0, 0, 0, 0.15);
+
+// 断点
+$breakpoint-xs: 480px;
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-2xl: 1536px;
+
+// Z-index 层级
+$z-index-base:     1;
+$z-index-dropdown: 1000;
+$z-index-sticky:   1100;
+$z-index-fixed:    1200;
+$z-index-modal:    1300;
+$z-index-popover:  1400;
+$z-index-tooltip:  1500;
+$z-index-toast:    1600;
+
+// 动画
+$transition-fast:   0.15s ease;
+$transition-base:   0.3s ease;
+$transition-slow:   0.5s ease;
+$ease-in-out:       cubic-bezier(0.4, 0, 0.2, 1);
+$ease-in:           cubic-bezier(0.4, 0, 1, 1);
+$ease-out:          cubic-bezier(0, 0, 0.2, 1);

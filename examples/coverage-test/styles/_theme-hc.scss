@@ -1,0 +1,52 @@
+// =====================================================================
+// _theme-hc.scss - 高对比度主题 (无障碍)
+// =====================================================================
+
+[data-theme='high-contrast'] {
+  --color-primary: #0000ee;
+  --color-primary-hover: #0000ff;
+  --color-primary-active: #0000aa;
+  --color-primary-bg: #ccccff;
+
+  --color-success: #008800;
+  --color-warning: #ee6600;
+  --color-danger:  #cc0000;
+  --color-info:    #555555;
+
+  --text-primary:   #000000;
+  --text-secondary: #000000;
+  --text-tertiary:  #333333;
+  --text-disabled:  #666666;
+  --text-inverse:   #ffffff;
+
+  --bg-base:    #ffffff;
+  --bg-light:   #f0f0f0;
+  --bg-lighter: #e0e0e0;
+  --bg-dark:    #000000;
+  --bg-mask:    rgba(0, 0, 0, 0.8);
+
+  --border-base:    #000000;
+  --border-light:   #666666;
+  --border-lighter: #999999;
+
+  --radius-sm: 0;
+  --radius-base: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+}
+
+.theme-high-contrast {
+  background: var(--bg-base);
+  color: var(--text-primary);
+
+  // 高对比度强制加粗
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 800;
+  }
+
+  // 强制边框可见
+  *:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}

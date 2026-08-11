@@ -1,0 +1,134 @@
+// =====================================================================
+// responsive.scss - 响应式 + container query + @media 全面
+// =====================================================================
+
+// 移动优先 - min-width
+@mixin up($breakpoint) {
+  @media (min-width: $breakpoint) { @content; }
+}
+@mixin down($breakpoint) {
+  @media (max-width: ($breakpoint - 1px)) { @content; }
+}
+@mixin between($min, $max) {
+  @media (min-width: $min) and (max-width: ($max - 1px)) { @content; }
+}
+
+$breakpoints: (
+  xs: 480px,
+  sm: 640px,
+  md: 768px,
+  lg: 1024px,
+  xl: 1280px,
+  xxl: 1536px
+);
+
+// 工具类 (生成 .up-md / .down-sm 等)
+@each $name, $size in $breakpoints {
+  .hide-up-#{$name} { @include up($size) { display: none !important; } }
+  .hide-down-#{$name} { @include down($size) { display: none !important; } }
+  .show-up-#{$name} { @include down($size - 1px) { display: none !important; } }
+  .show-down-#{$name} { @include up($size) { display: none !important; } }
+}
+
+// 标准响应式
+@include down($breakpoint-md) {
+  .container {
+    padding: 0 12px;
+  }
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@include up($breakpoint-lg) {
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+// Container query
+.card-grid {
+  container-type: inline-size;
+  container-name: card-grid;
+}
+
+@container card-grid (min-width: 400px) {
+  .card-item {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@container card-grid (min-width: 800px) {
+  .card-item {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+// 方向响应
+@container (orientation: landscape) {
+  .orientation-aware {
+    flex-direction: row;
+  }
+}
+
+@container (orientation: portrait) {
+  .orientation-aware {
+    flex-direction: column;
+  }
+}
+
+// Style query
+@container style(--theme: dark) {
+  .theme-aware {
+    background: #141414;
+    color: #fff;
+  }
+}
+
+// 打印媒体
+@media print {
+  .no-print { display: none !important; }
+  body { font-size: 12pt; }
+  a { text-decoration: underline; }
+  .page-break { page-break-after: always; }
+}
+
+// 屏幕方向
+@media (orientation: landscape) and (max-width: 1024px) {
+  .landscape-mobile {
+    padding: 8px;
+  }
+}
+
+// 暗色模式系统
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-base: #141414;
+    --text-primary: rgba(255, 255, 255, 0.85);
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-base: #ffffff;
+    --text-primary: rgba(0, 0, 0, 0.85);
+  }
+}
+
+// 减弱动画
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+// 高对比度
+@media (prefers-contrast: more) {
+  :root {
+    --border-base: #000000;
+  }
+}

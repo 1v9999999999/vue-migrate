@@ -1,0 +1,167 @@
+// =====================================================================
+// typography.styl - 排版系统 (Stylus 风格)
+// Stylus 语法: 不写大括号 / 冒号, 缩进表示层级
+// =====================================================================
+
+// 字体栈
+$base-font = -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif
+$mono-font = "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace
+$display-font = "PingFang SC", "Microsoft YaHei", sans-serif
+
+// 字号
+$fs-2xs = 0.625rem  // 10px
+$fs-xs = 0.75rem    // 12px
+$fs-sm = 0.875rem   // 14px
+$fs-base = 1rem     // 16px
+$fs-lg = 1.125rem   // 18px
+$fs-xl = 1.25rem    // 20px
+$fs-2xl = 1.5rem    // 24px
+$fs-3xl = 1.875rem  // 30px
+$fs-4xl = 2.25rem   // 36px
+$fs-5xl = 3rem      // 48px
+
+// 行高
+$lh-tight = 1.25
+$lh-snug = 1.375
+$lh-normal = 1.5
+$lh-relaxed = 1.625
+$lh-loose = 2
+
+// 字间距
+$ls-tight = -0.025em
+$ls-normal = 0
+$ls-wide = 0.025em
+
+// 字重
+$fw-thin = 100
+$fw-light = 300
+$fw-normal = 400
+$fw-medium = 500
+$fw-semibold = 600
+$fw-bold = 700
+$fw-black = 900
+
+// 标题 (H1-H6)
+h1, .h1
+  font-size $fs-4xl
+  font-weight $fw-bold
+  line-height $lh-tight
+  letter-spacing $ls-tight
+  font-family $display-font
+
+h2, .h2
+  font-size $fs-3xl
+  font-weight $fw-semibold
+  line-height $lh-tight
+  font-family $display-font
+
+h3, .h3
+  font-size $fs-2xl
+  font-weight $fw-semibold
+  line-height $lh-snug
+
+h4, .h4
+  font-size $fs-xl
+  font-weight $fw-semibold
+  line-height $lh-snug
+
+h5, .h5
+  font-size $fs-lg
+  font-weight $fw-medium
+  line-height $lh-normal
+
+h6, .h6
+  font-size $fs-base
+  font-weight $fw-medium
+  line-height $lh-normal
+
+// 正文
+body
+  font-family $base-font
+  font-size $fs-base
+  line-height $lh-normal
+  color var(--text-primary)
+
+// 段落
+p
+  margin-bottom 1em
+  font-size $fs-base
+  line-height $lh-relaxed
+
+// 引用
+blockquote
+  margin 1em 0
+  padding 0.5em 1em
+  border-left 4px solid #1890ff
+  background #f0f8ff
+  color #555
+  font-style italic
+
+// 代码
+code
+  font-family $mono-font
+  font-size 0.875em
+  padding 0.2em 0.4em
+  background #f5f5f5
+  border-radius 3px
+
+pre
+  font-family $mono-font
+  font-size $fs-sm
+  padding 1em
+  background #1e1e1e
+  color #d4d4d4
+  border-radius 6px
+  overflow-x auto
+  line-height $lh-relaxed
+
+  code
+    background transparent
+    padding 0
+
+// 列表
+ul, ol
+  padding-left 1.5em
+  margin 1em 0
+
+ul
+  list-style disc
+
+ol
+  list-style decimal
+
+li
+  margin 0.25em 0
+
+// 强调
+strong, b
+  font-weight $fw-semibold
+
+em, i
+  font-style italic
+
+u
+  text-decoration underline
+
+// 小字
+small, .small
+  font-size $fs-xs
+  color var(--text-tertiary)
+
+// 删除线
+del, s
+  text-decoration line-through
+  color var(--text-tertiary)
+
+// 下划线
+ins
+  text-decoration underline
+  color #1890ff
+
+// 工具类
+.font-thin { font-weight $fw-thin }
+.font-light { font-weight $fw-light }
+.font-normal { font-weight $fw-normal }
+.font-medium { font-weight $fw-medium }
+.font-semibold { font-weight $fw-semibold }
+.font-bold { font-weight $fw-bold }
