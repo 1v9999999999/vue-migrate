@@ -338,7 +338,7 @@ export default {
     rowClassName({ row, rowIndex }) {
       return row.age > 50 ? 'row-senior' : ''
     },
-    cellClassName({ row, row, column }) {
+    cellClassName({ row, column }) {
       if (column.field === 'status' && row.status === 'inactive') {
         return 'cell-inactive'
       }

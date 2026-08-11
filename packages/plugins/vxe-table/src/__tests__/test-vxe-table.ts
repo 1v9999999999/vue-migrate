@@ -181,6 +181,16 @@ const importCases: ImportCase[] = [
     expectHasCss: false,
     expectHasMain: false,
   },
+  // ────────────────────────────────────────────────────────────
+  // iter-104: useRawSource 模式 (composition 之后 codegen 直接用 file.source)
+  // ────────────────────────────────────────────────────────────
+  {
+    name: 'useRawSource: file.source 包含旧 CSS, 也应该被替换 (iter-104 bug fix)',
+    script: `import VXETable from 'vxe-table'\nimport 'vxe-table/lib/index.css'\nVue.use(VXETable)`,
+    expected: `import VXETable from 'vxe-table';\nimport 'vxe-table/lib/style.css';\nVue.use(VXETable);`,
+    expectHasCss: true,
+    expectHasMain: true,
+  },
 ]
 
 // ────────────────────────────────────────────────────────────

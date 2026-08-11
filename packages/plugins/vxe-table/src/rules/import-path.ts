@@ -8,6 +8,10 @@
  *
  * 默认导入名建议改成 VxeUITable 以符合 v4 习惯
  * (但插件不强制改 — `Vue.use(VXETable)` 的代码 v4 仍能跑)。
+ *
+ * 注意 (iter-104): 直接修改 file.scriptAst 不够, 因为 composition plugin
+ * (priority 0, 先跑) 会设 file.useRawSource=true, codegen 直接输出
+ * file.source 而忽略 scriptAst。所以这里要**同时**改 file.source 字符串。
  */
 
 import _traverse from '@babel/traverse'
@@ -32,26 +36,38 @@ export function collectVxeTableImports(ctx: TransformContext): VxeTableContext {
     hasCss: false,
   }
 
-  if (!ctx.file.scriptAst) return info
+  const file: any = ctx.file
 
-  traverse(ctx.file.scriptAst, {
-    ImportDeclaration(path: any) {
-      const node = path.node
-      if (!t.isStringLiteral(node.source)) return
-      const src = node.source.value
+  // iter-104: 同时修改 file.source 字符串 (composition 之后会优先用 file.source)
+  if (file.source && typeof file.source === 'string' && file.source.includes(OLD_CSS)) {
+    file.source = file.source.split(OLD_CSS).join(NEW_CSS)
+    info.hasCss = true
+  }
 
-      if (src === 'vxe-table') {
-        info.hasMainImport = true
-        // 不强制改 source（同名），但记录下来供后续规则判断
-      } else if (src === OLD_CSS) {
-        node.source.value = NEW_CSS
-        if (node.source.extra) node.source.extra.raw = `'${NEW_CSS}'`
-        else node.source.raw = `'${NEW_CSS}'`
-        info.hasCss = true
-        ctx.utils.markChanged(`vxe-table CSS path: ${OLD_CSS} → ${NEW_CSS}`)
-      }
-    },
-  })
+  // 同时改 AST, 让下游 plugin (如 import-cleaner) 重新 parse 时看到新路径
+  if (file.scriptAst) {
+    traverse(file.scriptAst, {
+      ImportDeclaration(path: any) {
+        const node = path.node
+        if (!t.isStringLiteral(node.source)) return
+        const src = node.source.value
+
+        if (src === 'vxe-table') {
+          info.hasMainImport = true
+          // 不强制改 source（同名），但记录下来供后续规则判断
+        } else if (src === OLD_CSS) {
+          node.source.value = NEW_CSS
+          if (node.source.extra) node.source.extra.raw = `'${NEW_CSS}'`
+          else node.source.raw = `'${NEW_CSS}'`
+          info.hasCss = true
+        }
+      },
+    })
+  }
+
+  if (info.hasCss) {
+    ctx.utils.markChanged(`vxe-table CSS path: ${OLD_CSS} → ${NEW_CSS}`)
+  }
 
   return info
 }
