@@ -55,26 +55,9 @@ const plugin: TransformPlugin = {
     if (!ctx.file.sfc?.script)
     return
 
-    // iter-051: this.$parent 在 setup() 中没有 this, 必须用 inject()/props/显式 ref.
-    // 先扫一次原始 source 标 review, 避免转换后变成无效代码被忽略.
-    // iter-053: 跳过注释 (// ...  和 /* ... */), 避免误命中手改后残留的 // BUG fix 注释.
-    if (ctx.file.source) {
-      const codeOnly = ctx.file.source
-        .replace(/\/\*[\s\S]*?\*\//g, '')  // /* ... */ 块注释
-        .replace(/\/\/[^\n]*/g, '')         // // 行注释
-      const matches = codeOnly.match(/\bthis\.\$parent\b/g) || []
-      if (matches.length > 0) {
-        ctx.utils.manualReview(
-          `this.$parent 出现 ${matches.length} 次 — Vue 3 <script setup> 中没有 this, this.$parent 是 Vue 2 隐式 API。\n` +
-            `  建议方案:\n` +
-            `    1) 父组件 provide('xxx', ref/data), 子组件 const xxx = inject('xxx')\n` +
-            `    2) 通过 props 显式传递\n` +
-            `    3) 通过 emit('xxx', val) + 父组件 v-on 监听, 走显式数据流\n` +
-            `  如果原意是访问父组件实例上的方法/数据, Vue 3 强烈不推荐 (instance API 已被移除), 应重构。`,
-        )
-        ctx.utils.markChanged(`this.$parent (${matches.length} 处)`)
-      }
-    }
+    // iter-051: this.$parent + iter-054: Vue 2 移除的 instance API + mixins 字段
+    // 全部移到 convertOptionsToSetup 里 (line 1510+ 之后) 推 result.reviewItems, 避免与 plugin transform 重复.
+    // 这里不再重复.
 
     // iter-046: <script setup> 已经有 script, 但里面可能直接用 props.X / emit('X', ...) 而没
     //   defineProps / defineEmits. 在这里扫描一下, 缺啥补啥 (不重写 setup body, 只插入声明)

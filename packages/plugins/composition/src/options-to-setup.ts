@@ -224,6 +224,61 @@ if (exportDefault && t.isCallExpression(exportDefault) && t.isMemberExpression(e
 return result } }
 
   const obj = exportDefault as any
+
+  // iter-054: 扫整个 script 文本 (去掉注释后) 检测 Vue 2 移除的 instance API + mixins 字段
+  //    这里要早于 data/methods 处理, 因为要看到原始的 this.$X 引用
+  const scriptSource = (file.sfc?.script?.content || '') as string
+  if (scriptSource) {
+    const codeOnly = scriptSource
+      .replace(/\/\*[\s\S]*?\*\//g, '')  // /* ... */ 块注释
+      .replace(/\/\/[^\n]*/g, '')         // // 行注释
+
+    // 1) Vue 2 移除的 instance API 批量 review
+    const REMOVED_INSTANCE_API: Array<{ name: string; replacement: string }> = [
+      { name: '$children', replacement: '在 setup() 里用 ref 数组 + provide/inject 替代' },
+      { name: '$root', replacement: '用 app.config.globalProperties 或 provide/inject 替代' },
+      { name: '$vnode', replacement: 'Vue 3 已完全移除; 用 lifecycle hook (onBeforeMount 等) 替代' },
+      { name: '$isServer', replacement: '用 import.meta.env.SSR 替代' },
+      { name: '$isDestroyed', replacement: '用 lifecycle hook onUnmounted 替代' },
+    ]
+    for (const api of REMOVED_INSTANCE_API) {
+      const re = new RegExp(`\\bthis\\.${api.name.replace(/\$/g, '\\$')}\\b`, 'g')
+      const m = codeOnly.match(re)
+      if (m && m.length > 0) {
+        result.reviewItems.push(
+          `this.${api.name} 出现 ${m.length} 次 — Vue 3 已完全移除 ${api.name}。${api.replacement}。`,
+        )
+      }
+    }
+    // 2) this.$options.componentName / this.$options.name
+    const optsRe = /\bthis\.\$options\.(componentName|name)\b/g
+    const optsM = codeOnly.match(optsRe)
+    if (optsM && optsM.length > 0) {
+      result.reviewItems.push(
+        `this.$options.componentName / this.$options.name 出现 ${optsM.length} 次 — Vue 3 需要在 <script setup> 顶部加 \`defineOptions({ name: 'ComponentName' })\` 显式声明组件名。`,
+      )
+    }
+    // 3) mixins: [...] 字段
+    const mixinMatches = codeOnly.match(/\bmixins\s*:\s*\[([^\]]+)\]/g) || []
+    const allMixins = mixinMatches
+      .flatMap((m) => {
+        const inner = m.match(/\[\s*([^\]]+?)\s*\]/)?.[1] || ''
+        return inner.split(',').map((x) => x.trim()).filter(Boolean)
+      })
+      .filter((v, i, a) => a.indexOf(v) === i)
+    if (allMixins.length > 0) {
+      result.reviewItems.push(
+        `检测到 mixins: [${allMixins.join(', ')}] — Vue 3 已不推荐 mixins, 强烈建议改为 composables (useXxx() 函数 + return ref/computed)。\n` +
+          `  转换步骤:\n` +
+          `    1) 把 ${allMixins.join(', ')} 里的 data/methods/computed/lifecycle hooks 提取为 setup 函数\n` +
+          `    2) 函数内用 ref/reactive 包装 data, computed 包装 getters, lifecycle 包装 hooks\n` +
+          `    3) export useXxx() { ... return { ... } }\n` +
+          `    4) 消费方在 <script setup> 顶部 const { ... } = useXxx()\n` +
+          `  ⚠️  自动转风险大(mixin 的 data merge 顺序、生命周期优先级、命名冲突), 不做自动改。`,
+      )
+    }
+  }
+
   const data = parseData(obj, result)
   const methods = parseMethods(obj, result)
   const computeds = parseComputed(obj, result)
