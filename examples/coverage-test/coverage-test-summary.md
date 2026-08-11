@@ -2,13 +2,13 @@
 
 > 目标: 用 1 套完全仿真的 Vue 2 样例代码, 穷举所有需要 vue-migrate 转换的写法, 验证 18 个 plugin + 整个迁移管线的覆盖率
 >
-> 范围: examples/coverage-test/ (60 源文件, 213KB)
+> 范围: examples/coverage-test/ (70 源文件, 316KB)
 >
 > 转换: vue-migrate transform --out D:\Projects\NB_EST\coverage-test-out
 >
-> 跑测时间: iter-102
+> 跑测时间: iter-105 (latest) — iter-102 首次基线
 >
-> HEAD: 见 git log (iter-101 之后)
+> HEAD: 见 git log (iter-104 之后)
 
 ---
 
@@ -16,14 +16,14 @@
 
 | 维度 | 数据 |
 |------|------|
-| **总文件数** | 60 (.vue / .js / config) |
-| **.vue 文件** | 41 |
+| **总文件数** | 70 (.vue / .js / config) |
+| **.vue 文件** | 50 |
 | **.js 文件** | 9 (main + store + router + utils + 工具) |
-| **配置文件** | 10 (package.json / vite.config.js / vue.config.js / .env.* / tsconfig.* / shims) |
-| **总代码量** | 213,518 bytes (≈ 208 KB) |
+| **配置文件** | 11 (package.json / vite.config.js / vue.config.js / .env.* / tsconfig.* / shims) |
+| **总代码量** | 316,367 bytes (≈ 309 KB) |
 | **覆盖 Vue 2 写法** | 100+ 种 (按 taxonomy 15 大类) |
-| **覆盖第三方库** | 6 大类 (element-ui / ant-design-vue / wangeditor / sortable / tinymce / echarts) |
-| **vue-migrate 转换** | ✅ 0 错误, 129 文件改动, 89 review 提示, 200 类型识别, 39 输出文件 |
+| **覆盖第三方库** | 7 大类 (element-ui / ant-design-vue / **vxe-table** / wangeditor / sortable / tinymce / echarts) |
+| **vue-migrate 转换** | ✅ 0 错误, 59 文件扫描, 177 文件改动, 94 review 提示, 270 类型识别, 50 输出文件 |
 
 ---
 
@@ -73,6 +73,17 @@ examples/coverage-test/
 │   ├── Cascader.vue              (displayRender / lazy / remote / SHOW_CHILD / fieldNames)
 │   ├── Message.vue               (5 type / key / onClose / sequential / 4 placement / grouping)
 │   └── Select.vue                (8 模式 / 3 size / labelInValue / OptGroup / tagRender / remote)
+│
+├── vxe-table/                    (iter-103, 9 .vue)
+│   ├── BasicTable.vue            (vxe-table + 6 列类型 (seq/checkbox/radio/expand/edit-render) + 30+ config + 17 事件)
+│   ├── Grid.vue                  (vxe-grid 高级表格 + toolbar/pager/proxy/export/print/import)
+│   ├── ToolbarPager.vue          (vxe-toolbar 独立 + vxe-pager 3 模式 + slot 注入)
+│   ├── Form.vue                  (vxe-form 11 字段 + rules + 嵌套 modal)
+│   ├── EditTable.vue             (可编辑表格 7 edit-render 控件 + 6 配置 + 7 操作)
+│   ├── TreeTable.vue             (树形 + lazy loadMethod + filter 递归)
+│   ├── VirtualTable.vue          (20 列虚拟滚动 + 5000 行大数据 + optimization)
+│   ├── ModalSelect.vue           (vxe-modal 完整 + vxe-select 远程 + vxe-pulldown + vxe-list)
+│   └── PrintExport.vue           (vxe-toolbar 完整配置 + vxe-upload 完整 + 8 操作)
 │
 ├── wangeditor/                   (iter-092, 4 .vue + 1 .js)
 │   ├── BasicEditor.vue           (v-model / onchange / insertText / clear / getText/getHtml)
@@ -272,6 +283,43 @@ main.js (3.7KB) 完整覆盖:
 - commitizen / standard-version
 - 嵌套 config
 
+### 2.7 vxe-table 3.x 穷举 (iter-103 新增)
+
+| 类别 | 组件 / 写法 | 触发文件 |
+|------|-------------|----------|
+| 主表格 | <vxe-table> + 6 列类型 (seq/checkbox/radio/expand/normal/edit-render) | BasicTable.vue |
+| 主表格 config | seq/sort/filter/radio/checkbox/tooltip/mouse/keyboard/edit/valid/menu/column/row/scroll + 17 事件 | BasicTable.vue |
+| 主表格 | 分组表头 group-config + mergeCells | BasicTable.vue |
+| 高级表格 | <vxe-grid> + toolbar + pager + proxy-config + editRules + export/print/import + valid | Grid.vue |
+| 高级表格事件 | toolbar-button-click/tool/tool-click/page-change/sort-change/filter-change/form-submit/reset | Grid.vue |
+| 工具栏 (独立) | <vxe-toolbar> + refresh/import/export/print/custom/perfect + buttons/tools slot | ToolbarPager.vue |
+| 分页 (独立) | <vxe-pager> 3 模式 (default/simple/完整 layouts) + 4 slot (left/right/default) | ToolbarPager.vue |
+| 表单 | <vxe-form> 11 字段类型 (input/inputNumber/radio/checkboxGroup/select/datePicker/textarea/switch/tag) | Form.vue |
+| 表单 rules | 4 类型 (required/minMax/email/custom validator) | Form.vue |
+| 表单 | 弹窗嵌套 form | Form.vue |
+| 可编辑 | edit-render 7 控件 + edit/valid/mouse/keyboard/clip/area/copy 7 config | EditTable.vue |
+| 可编辑事件 | edit-closed/edit-actived/edit-disabled | EditTable.vue |
+| 可编辑操作 | 新增/保存/批量删除/校验/撤销/清空/手动编辑 | EditTable.vue |
+| 树形 | tree-config children 递归 + accordion + expandAll + expandRowKeys | TreeTable.vue |
+| 树懒加载 | lazy: true + loadMethod 动态加载 | TreeTable.vue |
+| 树过滤 | filterMethod 递归 filter | TreeTable.vue |
+| 树事件 | toggle-tree-expand/checkbox-change/checkbox-all | TreeTable.vue |
+| 树操作 | 添加子项/重命名/删除 | TreeTable.vue |
+| 虚拟滚动 | scroll-x/y + optimization.scrollX/Y + 5000 行大数据 | VirtualTable.vue |
+| 虚拟滚动 | tooltip + area 多选 | VirtualTable.vue |
+| 弹窗 | <vxe-modal> 完整 (drag/resize/fullscreen/zoom/esc/mask/lock) + 4 slot (title/default/footer) | ModalSelect.vue |
+| 弹窗嵌套 | <vxe-grid> 嵌入 modal | ModalSelect.vue |
+| 高级下拉 | <vxe-select> 远程搜索 + 多选 + maxTagCount + showStatus + custom option slot | ModalSelect.vue |
+| 下拉面板 | <vxe-pulldown> + click-outside + 自定义内容 | ModalSelect.vue |
+| 列表 | <vxe-list> 虚拟列表 + scroll-y | ModalSelect.vue |
+| 打印 | printConfig + beforePrintMethod/afterPrintMethod + beforeExportMethod | PrintExport.vue |
+| 导出 | exportConfig types/modes + columnFilterMethod | PrintExport.vue |
+| 导入 | importConfig remote/modes/msgMode/importMethod | PrintExport.vue |
+| 列控制 | customConfig storage + clearCustomStore/resetCustomStore | PrintExport.vue |
+| 上传 | <vxe-upload> multi/max-count/auto-upload/accept/list-type/drop-config | PrintExport.vue |
+| 上传事件 | before-upload/upload-progress/success/error/file-change/file-remove | PrintExport.vue |
+| 工具 | <vxe-input>/<vxe-textarea>/<vxe-tag>/<vxe-button> 独立使用 | 多个文件 |
+
 ### 2.8 配置文件
 
 | 文件 | 覆盖范围 |
@@ -283,15 +331,68 @@ main.js (3.7KB) 完整覆盖:
 
 ---
 
-## 3. vue-migrate 转换实测 (iter-102 跑测)
+## 3. vue-migrate 转换实测
 
-### 3.1 跑测命令
+### 3.0 iter-105 跑测 (最新, 含 vxe-table 9 文件 + bug fix)
+
+```
+[1/6] 扫描文件: examples/coverage-test
+       发现 59 个文件 (排除 .env / package.json / vite.config.js / tsconfig.json / shims-vue.d.ts 等)
+[2/6] 解析 AST
+[3/6] 插件扫描钩子
+[4/6] 跨文件分析
+[5/6] 文件级转换
+[6/6] 生成代码 + 写盘
+       已写 50 个文件
+
+📊 统计
+   总文件:    59
+   已修改:    177  (iter-102: 129, +48)
+   需人工:    94   (iter-102: 89, +5)
+   新增类型:  270  (iter-102: 200, +70)
+   错误:      0
+
+🔍 识别到的 Vue2 特性
+   options-data                 38   (iter-102: 29, +9 from vxe-table/)
+   options-methods              38   (iter-102: 29, +9)
+   vue2-before-destroy          20   (iter-102: 11, +9)
+   options-lifecycle            16
+   options-computed             12
+   slot-attr                    10
+   slot-scope                   6
+   filters-in-template          3    (iter-102: 1, +2)
+   vue2-destroyed               2
+   event-bus                    1
+   this-children                1
+   options-api                  1
+   named-slot                   1
+```
+
+### 3.0.1 iter-104 bug fix (vxe-table plugin import-path useRawSource mode)
+
+**问题发现**: iter-103 跑 vxe-table/ 9 文件时, 发现 vxe-table plugin (priority 8) 改 `file.scriptAst`, 但 composition plugin (priority 0, 先跑) 会设 `file.useRawSource=true`, codegen 直接输出 `file.source` 字符串而忽略 scriptAst。导致 vxe-table/lib/index.css → vxe-table/lib/style.css **没生效** (output 文件 CSS 路径不变)。
+
+**修复** (`packages/plugins/vxe-table/src/rules/import-path.ts`):
+- 同时修改 `file.source` 字符串 (跟 elementui icon.ts 一样思路)
+- 保留 AST 改写 (让下游 plugin reparse 时看到新路径)
+- 加 1 个 test case 验证 (`useRawSource: file.source 包含旧 CSS`)
+
+**验证**:
+- 修前: `D:\Projects\NB_EST\vxe-table-out\Grid.vue` line 86: `import 'vxe-table/lib/index.css';` ❌
+- 修后: `D:\Projects\NB_EST\vxe-table-out\Grid.vue` line 86: `import 'vxe-table/lib/style.css';` ✅
+- 全 8 个 vxe-table .vue 文件 CSS 路径 100% 正确
+- vxe-table plugin unit tests: 13 → 14 (0 regression)
+- 全量 unit tests: 630 → 631 (0 regression)
+
+### 3.1 iter-102 跑测 (基线)
+
+### 3.2 跑测命令 (所有 iter 通用)
 
 ```powershell
 & "packages\cli\node_modules\.bin\tsx.cmd" "packages/cli/src/index.ts" "transform" "examples\coverage-test\" "--out" "D:\Projects\NB_EST\coverage-test-out" "--only-changed"
 ```
 
-### 3.2 跑测结果
+### 3.3 iter-102 跑测结果 (基线)
 
 ```
 [1/6] 扫描文件: examples/coverage-test
@@ -327,7 +428,7 @@ main.js (3.7KB) 完整覆盖:
        已写 39 个文件
 ```
 
-### 3.3 报告统计
+### 3.4 iter-102 报告统计
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -357,29 +458,29 @@ main.js (3.7KB) 完整覆盖:
      named-slot                   1
 ```
 
-### 3.4 触发最多的 plugin
+### 3.5 触发最多的 plugin (iter-105 latest)
 
 | plugin | 触发 | 备注 |
 |--------|------|------|
-| `manual-review` | 89 | 提示用户手动处理 (含 $store/$route/$axios/$bus 注入建议) |
-| `vue2-compat` | 13+ | beforeDestroy→beforeUnmount, destroyed→unmounted, new Vue→createApp |
-| `vue3-template` | 9+ | slot-scope→#, v-bind.sync→v-model:, inline-template 移除 |
+| `manual-review` | 94 | 提示用户手动处理 (含 $store/$route/$axios/$bus 注入建议) |
+| `vue2-compat` | 20+ | beforeDestroy→beforeUnmount, destroyed→unmounted, new Vue→createApp |
+| `vue3-template` | 16+ | slot-scope→#, v-bind.sync→v-model:, inline-template 移除 |
 | `vue3-directives` | 2+ | :value+@input→v-model, keep-alive :include 字符串→数组 |
 | `elementui` | 多文件 | el-icon 自动注入 + el-button icon 提示 |
-| `composition` | 6+ 文件 | options→<script setup> 完整改写 |
+| `composition` | 49+ 文件 | options→<script setup> 完整改写 |
 | `store-bridge` | 2+ | useAppStore / useTagsViewStore 桥接 |
 | `vuex-pinia` | 4 modules | mutations→actions, state 直接读 |
 | `vue-router-v4` | 多文件 | mode history / createRouter / createWebHistory |
-| `vxe-table` | 多文件 | v3 import 路径 |
+| `vxe-table` | **8 文件** | **CSS path** `vxe-table/lib/index.css` → `vxe-table/lib/style.css` (3 触发, iter-104 bug fix 后) + **<vxe-table-column> → <vxe-column>** (4 触发) |
 | `3rd-party-imports` | 多文件 | camelCase 命名 + element-plus v2 |
 | `vue3-types` | 多文件 | $store×8 $route×4 标 TODO |
 | `vite-compat` | 多文件 | Node builtins 替换 |
 | `import-cleaner` | 多文件 | raw source 模式删除未用 import (10+ per file) |
 | `this-replacer` | 多文件 | this.$emit → emit(), this.$refs[xxx] → useTemplateRef |
 
-### 3.5 0 错误 0 卡死
+### 3.6 0 错误 0 卡死
 
-50 文件扫描 / 39 写入 / 0 错误 / 0 卡死 / 0 exception 抛出。
+59 文件扫描 / 50 写入 / 0 错误 / 0 卡死 / 0 exception 抛出 (iter-105 latest)。
 
 ---
 
@@ -406,7 +507,7 @@ main.js (3.7KB) 完整覆盖:
 | **vue3-template** | ✅ slot-scope/ v-bind.sync/ inline-template | 全功能 |
 | **vue3-types** | ✅ $store/$route TODO | 全功能 |
 | **vuex-pinia** | ✅ 4 modules 全转 | 全功能 |
-| **vxe-table** | (未在 coverage 触发, 但 vxe-table/ 目录有, 留给真实场景) | 全功能 |
+| **vxe-table** | ✅ vxe-table/ 9 文件 (CSS path 3 触发 + column rename 4 触发 + import 收集); iter-104 修了 useRawSource bug | 全功能 |
 
 ### 4.2 iter-051~067 新规则覆盖
 
@@ -478,18 +579,22 @@ main.js (3.7KB) 完整覆盖:
 
 ### 6.2 已知未修复 (manual review 提示)
 
-89 条 review 中, 全部都需要人工 follow-up, 主要是:
+94 条 review 中, 全部都需要人工 follow-up, 主要是:
 1. **import 注入** (this.$store → useStore import) — 30+ 处
 2. **mitt 替代 this.$bus** — 5+ 处
 3. **inline-template 改 slot** — 1 处
 4. **mixins 改 composables** — 1 处 (但 plugin 不自动改, 给提示)
 5. **el-button icon 嵌套结构** — 1 处
+6. **this.$refs[xxx] 动态** → useTemplateRef — 6+ 处 (vxe-table/ 4, sortable-drag/ 2, element-ui/Form.vue 1)
+7. **$forceUpdate 替换为 ref/reactive** — 1 处 (vxe-table/BasicTable.vue)
+8. **vxe-table 完整 review**: 1 处 (BasicTable.vue $forceUpdate)
 
 ### 6.3 plugin 已知限制
 
 - composition 的 TS EmitsPayloads interface arg types 仍是 any
 - dynamic this.$refs[xxx] 字符级识别, 嵌套场景可能漏
 - recursive component 检测 limited to 2 层
+- **vxe-table plugin column rename 只覆盖 <vxe-table-column> → <vxe-column>**, 其他 v3→v4 命名变化 (vxe-grid / vxe-toolbar 等) 不自动改
 
 ---
 
@@ -499,12 +604,14 @@ main.js (3.7KB) 完整覆盖:
 
 - **CI 回归**: 每次 plugin 改动跑一次, 对比 output 跟 baseline, 检测 0 regression
 - **新增 plugin test**: 在 coverage-test/ 加新文件触发新 plugin 的 code path
-- **performance benchmark**: 跑 60 文件测速
+- **performance benchmark**: 跑 70 文件测速
+- **plugin bug 发现**: iter-104 跑 vxe-table/ 时发现 import-path useRawSource bug — coverage-test 是 plugin 端到端验证的唯一手段
 
 ### 7.2 给真实项目用
 
 - **样本参考**: 真实项目遇到不会写的 pattern 可以参考 coverage-test/ 怎么写
-- **migration plan 模板**: 按 13 module 的顺序推进 (router → store → main.js → 组件 → 配置)
+- **migration plan 模板**: 按 14 module 的顺序推进 (router → store → main.js → 组件 → 配置 → **vxe-table**)
+- **vxe-table 升级**: 真实项目用 vxe-table 的可参考 vxe-table/ 9 文件
 
 ### 7.3 给文档用
 
@@ -520,20 +627,23 @@ main.js (3.7KB) 完整覆盖:
 | `docs/iter-088-coverage-taxonomy.md` | taxonomy 源头, 1 轮 1 module 推进计划 |
 | `examples/vue-element-admin-master/` (master 195 文件) | 真实世界触发统计 (0 regression baseline) |
 | `_dbg/iter-078-counts.mjs` | master 195 文件的 0-regression 验证脚本 |
+| `_dbg/iter-104-convert.ps1` / `_dbg/iter-105-convert.ps1` | vxe-table/ 全量 / coverage-test 全量 转换脚本 |
 | `docs/PLUGIN_GUIDE.md` | plugin 总览, 引用 coverage-test/ 例子 |
-| `docs/CHANGELOG.md` | iter-085~102 沉淀 |
+| `docs/CHANGELOG.md` | iter-085~105 沉淀 |
 | `packages/plugins/*/README.md` | 每个 plugin README 引用 coverage-test/ 对应文件 |
 
 ---
 
 ## 9. 跑测命令速查
 
+### 9.1 全量 coverage-test 转换 (推荐)
+
 ```powershell
 # 1. 跑转换
 & "packages\cli\node_modules\.bin\tsx.cmd" "packages/cli/src/index.ts" "transform" "examples\coverage-test\" "--out" "D:\Projects\NB_EST\coverage-test-out" "--only-changed"
 
 # 2. 看 report
-Get-Content "$env:TEMP\iter-102-convert.log"
+Get-Content "$env:TEMP\iter-105-convert.log"
 
 # 3. 跑 unit tests
 & "packages\cli\node_modules\.bin\tsx.cmd" "_dbg\check-all-tests.mjs"
@@ -545,16 +655,27 @@ Get-Content "$env:TEMP\iter-102-convert.log"
 Get-ChildItem D:\Projects\NB_EST\coverage-test-out\ -Recurse | Measure-Object Length -Sum
 ```
 
+### 9.2 单个 vxe-table 子目录转换 (debug 用)
+
+```powershell
+& "packages\cli\node_modules\.bin\tsx.cmd" "packages/cli/src/index.ts" "transform" "examples\coverage-test\vxe-table\" "--out" "D:\Projects\NB_EST\vxe-table-out" "--only-changed"
+```
+
 ---
 
 ## 10. 后续
 
-- iter-103+: 真实项目跑测 (如 vue-element-admin-master 增量触发)
-- 修复 89 review 中最常见的 5 类:
+- iter-106+: 真实项目跑测 (如 vue-element-admin-master 增量触发)
+- iter-104 已修 vxe-table plugin import-path useRawSource bug, 类似 bug 排查 (其他 plugin 改 AST 不改 file.source 的场景):
+  - 已检查: elementui / import-cleaner / this-replacer / vuex-pinia / store-bridge 都已经处理 useRawSource ✅
+  - 还需检查: vue-router-v4 (route transform) / vue3-template (template 改 source 已经用 replaceTemplateContent) / vue3-types / directive-auto-register
+- 修复 94 review 中最常见的 5 类:
   1. 自动注入 $store/$route (需要 import 自动推断)
   2. mitt 自动建议
   3. inline-template → slot 自动改
   4. mixins → composables 自动改 (目前 plugin 不自动)
   5. el-button icon 嵌套自动补
+  6. **dynamic this.$refs[xxx] → useTemplateRef** (vxe-table/ 4 + sortable-drag/ 2 + element-ui/Form.vue)
 - 跟踪 .vue → .ts 转换的 syntax gap (等真实项目有 TS 后再补)
 - 跟踪 mobile / SSR / Nuxt 的 taxonomy 扩展
+- 跟踪 vxe-table v3→v4 完整迁移 (目前 plugin 只覆盖 column rename + CSS path, 其他需 v4 新名字)
