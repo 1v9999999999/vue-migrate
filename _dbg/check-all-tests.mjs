@@ -33,6 +33,7 @@ const testFiles = [
   'packages/plugins/this-replacer/src/__tests__/test-this-replacer.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-new-x-mount.ts',
   'packages/plugins/composition/src/__tests__/test-recursive-method.mjs',
+  'packages/plugins/composition/src/__tests__/test-parent-skip-comments.mjs',
 ]
 
 let totalPass = 0
