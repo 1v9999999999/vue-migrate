@@ -119,10 +119,10 @@ const plugin: TransformPlugin = {
     file.source = r.newSource
     file.useRawSource = true
     utils.markChanged(`[v-model-emit-fixer] 修复 ${r.fixedCount} 处 emit('input')`)
-    utils.manualReview(
+    // iter-115: 降级为 ctx.log — emit 已修复, prop 改名属业务决策 (T2.4 计划)
+    ctx.log(
       `[v-model-emit-fixer] 已在 ${file.relativePath} 把 defineEmits + emit('input', ...) 改成 update:modelValue。` +
-      `⚠ 如果父级用 v-model="x" 且子组件 props 仍叫 value, 请同时把 defineProps 的 value 改名 modelValue 以匹配 Vue 3 v-model 默认协议。` +
-      `(我们没自动改 prop 名, 因为这可能影响其他 :value= 引用。)`,
+      `ℹ️ 如果父级用 v-model="x" 且子组件 props 仍叫 value, iter-116 Tier 2.4 会自动改 prop 名 modelValue (注意: 所有 :value= 引用会同步重命名)。`,
     )
   },
 }

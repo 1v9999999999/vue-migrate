@@ -44,6 +44,9 @@ importers:
       '@vue-migrate/plugin-store-bridge':
         specifier: workspace:*
         version: link:../plugins/store-bridge
+      '@vue-migrate/plugin-this-replacer':
+        specifier: workspace:*
+        version: link:../plugins/this-replacer
       '@vue-migrate/plugin-v-model-emit-fixer':
         specifier: workspace:*
         version: link:../plugins/v-model-emit-fixer
@@ -56,6 +59,9 @@ importers:
       '@vue-migrate/plugin-vite-scaffold':
         specifier: workspace:*
         version: link:../plugins/vite-scaffold
+      '@vue-migrate/plugin-vue-extend':
+        specifier: workspace:*
+        version: link:../plugins/vue-extend
       '@vue-migrate/plugin-vue-router-v4':
         specifier: workspace:*
         version: link:../plugins/vue-router-v4
@@ -152,6 +158,9 @@ importers:
       '@vue-migrate/core':
         specifier: workspace:*
         version: link:../../core
+      '@vue/compiler-sfc':
+        specifier: ^3.5.41
+        version: 3.5.41
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -297,6 +306,9 @@ importers:
 
   packages/plugins/this-replacer:
     dependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@babel/parser':
         specifier: ^7.25.0
         version: 7.29.8
@@ -383,6 +395,28 @@ importers:
       tsx:
         specifier: ^4.23.9
         version: 4.23.9
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
+  packages/plugins/vue-extend:
+    dependencies:
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       typescript:
         specifier: ^5.5.0
         version: 5.5.2

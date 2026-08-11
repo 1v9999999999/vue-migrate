@@ -61,9 +61,12 @@ const plugin: TransformPlugin = {
 
     // iter-046: <script setup> 已经有 script, 但里面可能直接用 props.X / emit('X', ...) 而没
     //   defineProps / defineEmits. 在这里扫描一下, 缺啥补啥 (不重写 setup body, 只插入声明)
+    // iter-111: 这种 "已存在 <script setup>, 跳过 Options→Composition 转换" 的情况, 实际 plugin 已正确处理
+    //   (扫描了 props.X / emit() 注入 defineProps / defineEmits). 不需要用户 follow-up, 改为 info-only 日志
     if (ctx.file.sfc.script.attrs?.setup) {
       maybeInjectDefinePropsEmitsForExistingSetup(ctx)
-      ctx.utils.manualReview('已存在 <script setup>，跳过 Options→Composition 转换 (但已扫描 props.X / emit() 注入 defineProps / defineEmits)')
+      // 改为 ctx.log (file-level info 日志), 不进 review 列表
+      ctx.log(`[composition] file ${ctx.file.relativePath} already has <script setup>, skipped Options→Composition (injected defineProps/defineEmits if needed)`)
       return
     }
 

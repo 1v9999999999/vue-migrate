@@ -6,7 +6,8 @@
   "types": "./src/index.ts",
   "description": "Auto-inject import statements for components used in <template> but missing from <script setup>. Solves P1 #16 #17 #18: <tab-pane>, <upload-excel-component>, <Share /> etc. not imported in iter-048 outputs.",
   "dependencies": {
-    "@vue-migrate/core": "workspace:*"
+    "@vue-migrate/core": "workspace:*",
+    "@vue/compiler-sfc": "^3.5.41"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

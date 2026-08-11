@@ -86,8 +86,12 @@ const KNOWN_TAGS = new Set<string>([
   'el-space', 'el-segmented', 'el-tour', 'el-tour-step',
   'el-descriptions', 'el-descriptions-item', 'el-empty',
   'el-scrollbar', 'el-infinite-scroll', 'el-virtual-list',
-  // 一些原项目常见全局 (svg-icon 在 main.js 注册)
-  'svg-icon',
+  'el-date-picker', 'el-time-picker', 'el-time-select',
+  'el-timeline', 'el-timeline-item', 'el-statistic',
+  // Vue Router 内置 (iter-115: master 195 之前漏了, 5 个 review)
+  'router-link', 'router-view',
+  // 一些原项目常见全局 (svg-icon / app-link / theme-picker 在 main.js 注册)
+  'svg-icon', 'app-link', 'theme-picker',
 ])
 
 /** kebab-case → PascalCase: 'tab-pane' → 'TabPane', 'upload-excel-component' → 'UploadExcelComponent' */
@@ -367,18 +371,16 @@ const plugin: TransformPlugin = {
       file.source = before + injectText + after
       file.useRawSource = true
       utils.markChanged(`[auto-import] 注入 ${missing.length} 个 import: ${missing.map((m) => m.pascal).join(', ')}`)
-      utils.manualReview(
-        `[auto-import-components] 已在 ${file.relativePath} 注入 import ${missing.map((m) => `${m.pascal} from '${m.importPath}'`).join('; ')}。` +
-        `请确认路径正确 (推断自 template 用法 + 同目录 components/ 扫描)。`,
-      )
+      // iter-115: 注入成功已通过 markChanged 标记, 降级为 file-level log (不再进 review 列表)
+      ctx.log(`[auto-import] 已在 ${file.relativePath} 注入 ${missing.length} 个 import: ${missing.map((m) => `${m.pascal} from '${m.importPath}'`).join('; ')} (推断自 template + 同目录 components/ 扫描, vite build 会验证路径)`)
     }
 
-    // 5) 找不到的 tag — manual review
+    // 5) 找不到的 tag — iter-115 降级为 ctx.log
+    //     原因: 26 个 "无法推断" 中大部分是 router-link / Vue3 内置 (前 5 个, 已加 KNOWN_TAGS) +
+    //           项目私有组件 (如 github-corner/count-to/split-pane/theme-picker) 需在 main.js 注册
+    //     这些"无法推断" 不是 bug, 是 project 配置, 用 ctx.log 即可
     if (unknown.length > 0) {
-      utils.manualReview(
-        `[auto-import-components] ${file.relativePath} 模板里用了 <${unknown.join('>, <')}> 但无法推断 .vue 路径。` +
-        `请手写 import, 或在 main.js 用 app.component() 全局注册。`,
-      )
+      ctx.log(`[auto-import] ${file.relativePath} 模板里 <${unknown.join('>, <')}> 无法推断 .vue 路径 — 在 main.js 用 app.component() 全局注册, 或手写 import`)
     }
 
     // 2b) Element Plus icons: 任何 PascalCase tag (e.g. Share, Document) → 试从 @element-plus/icons-vue import
@@ -441,9 +443,8 @@ function maybeAddIconsVueImport(
   file.source = before + '\n' + newImportLine + after
   file.useRawSource = true
   utils.markChanged(`[auto-import:icons-vue] 注入 ${needed.length} 个 icon: ${needed.join(', ')}`)
-  utils.manualReview(
-    `[auto-import-components] 已在 ${file.relativePath} 注入 ${newImportLine} (推测自 template 里的 PascalCase tag, 大概率是 @element-plus/icons-vue 的 icon 组件)。`,
-  )
+  // iter-115: 降级为 ctx.log (icon 注入成功, markChanged 已记录, 不再 review)
+  ;(utils as any).log?.(`[auto-import:icons-vue] 已在 ${file.relativePath} 注入 ${newImportLine} (推测自 PascalCase tag)`)
 }
 
 registerPlugin(plugin)

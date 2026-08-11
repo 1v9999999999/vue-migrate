@@ -49,27 +49,33 @@ function parseIncludeFromAttrs(attrText: string): { rawValue: string; isStringLi
   const m = attrText.match(/(?:^|\s)(?::|v-bind:)include\s*=\s*(.+?)\s*$/i)
   if (!m) return null
   const rawValue = m[1].trim()
+  // iter-115: rawValue 可能是 "someVar" (外层有引号), 这里去引号
+  //   e.g. <keep-alive :include="cachedViews"> — rawValue 抓出来是 "cachedViews", 我们想看到 cachedViews
+  const stripped = (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+                   (rawValue.startsWith("'") && rawValue.endsWith("'"))
+    ? rawValue.slice(1, -1)
+    : rawValue
 
   // 1) 整体是单引号字符串
-  const single = rawValue.match(/^'((?:[^'\\]|\\.)*)'$/)
+  const single = stripped.match(/^'((?:[^'\\]|\\.)*)'$/)
   if (single) {
-    return { rawValue, isStringLiteral: true, stringValue: single[1] }
+    return { rawValue: stripped, isStringLiteral: true, stringValue: single[1] }
   }
   // 2) 整体是双引号字符串
-  const dbl = rawValue.match(/^"((?:[^"\\]|\\.)*)"$/)
+  const dbl = stripped.match(/^"((?:[^"\\]|\\.)*)"$/)
   if (dbl) {
     // 内容本身如果也是个字符串字面量，递归解出来
     const inner = dbl[1]
     const innerUnquoted = unquoteStringLiteral(inner)
     if (innerUnquoted !== null) {
       // 内容确实是个字符串字面量 → 整个表达式是字符串
-      return { rawValue, isStringLiteral: true, stringValue: innerUnquoted }
+      return { rawValue: stripped, isStringLiteral: true, stringValue: innerUnquoted }
     }
     // 内容是数组 / 变量 / 表达式 —— 不是字符串
-    return { rawValue, isStringLiteral: false, stringValue: null }
+    return { rawValue: stripped, isStringLiteral: false, stringValue: null }
   }
   // 3) 其他（数组/变量）——不处理
-  return { rawValue, isStringLiteral: false, stringValue: null }
+  return { rawValue: stripped, isStringLiteral: false, stringValue: null }
 }
 
 function rewriteAttrs(attrText: string, newExpr: string): string {
@@ -103,10 +109,21 @@ export function applyKeepAliveIncludeArray(ctx: any): void {
           return `<keep-alive${newAttrs ? ' ' + newAttrs.replace(/^\s+/, '') : ''}${full.endsWith('/>') ? ' />' : '>'}`
         }
 
-        // 不是字符串字面量：可能本来就是数组 / 动态表达式；提示但不强行改
-        reviewItems.push(
-          `<keep-alive :include="${parsed.rawValue}"> — Vue3 requires an array of names, not a string. Please convert manually if it's a string.`,
-        )
+        // iter-113: 不是字符串字面量 (即 :include="someVar" 形式)
+        //   - 如果 value 像是 identifier (variable 引用), 默认 Vue 3 接受 array,
+        //     多数项目 cachedViews / keepAliveNames 等已经是 Pinia store 里的 array.
+        //     不进 review 列表, 改为 file-level info 日志.
+        //   - 如果 value 是字面量数组/对象/表达式 (e.g. ['A','B'] / cachedViews.split(',') / keepAliveFilter()),
+        //     也不进 review — Vue 3 接受, plugin 无需干预.
+        if (/^[a-zA-Z_$][\w$]*$/.test(parsed.rawValue)) {
+          // single identifier — likely a store/computed ref, not a string
+          ctx.log?.(`[keep-alive] :include="${parsed.rawValue}" — assumed to be a Pinia/computed array, not auto-rewriting (Vue 3 接受)`)
+        } else {
+          // 复杂表达式: 真的不确定是 array 还是 string, 给 1 个轻量 review
+          reviewItems.push(
+            `<keep-alive :include="${parsed.rawValue}"> — Vue3 requires an array of names, not a string. If the expression returns a string, please convert it to a computed array.`,
+          )
+        }
         changed = true
         return full
       })
