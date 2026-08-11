@@ -23,14 +23,15 @@ _old_222_*/
 *.bak
 
 # Local transform verification outputs (created by `vue-migrate transform --only-changed`)
-# Pattern: examples/_verify_*, examples/_test_*, examples/_dbg_*, examples/_v0*, examples/_final_*, examples/_build_verify
+# Pattern: examples/_verify_*, examples/_test_*, examples/_dbg_*, examples/_v*, examples/_final_*, examples/_build_verify*, examples/222_legacy_*
 /examples/_verify_*/
 /examples/_test_*/
 /examples/_dbg_*/
-/examples/_v0*/
+/examples/_v*/
 /examples/_final_*/
 /examples/_final_ve_*/
 /examples/_build_verify/
+/examples/_build_verify_*/
 /examples/222_legacy_*/
 /examples/ve-admin-test.zip
 /_dbg_gen.mjs
