@@ -54,6 +54,9 @@ export interface OptionsToSetupResult {
   emitUsed: boolean
   /** iter-046: emit event names 收集自 this.$emit('X', ...) 调用,用于生成 defineEmits(['X', ...]) */
   emitNames: Set<string>
+  /** iter-082: 每个 emit 事件的 payload arg count (eventName → max args seen)。
+   *  用于生成 `interface EmitsPayloads { name: [arg1: any, arg2: any] }`。 */
+  emitArgCounts: Map<string, number>
   hasProps: boolean
   propsTypeString: string
   /** True when the source <script> declared lang="ts"; controls whether
@@ -183,6 +186,7 @@ export function convertOptionsToSetup(
     storeUsed: false,
     emitUsed: false,
     emitNames: new Set(),
+    emitArgCounts: new Map(),
     hasProps: false,
     propsTypeString: '{}',
     isTs: false,
@@ -367,8 +371,15 @@ const injected: string[] = []
     }
     // iter-046: 收集 emit 事件名 (this.$emit('eventName', ...) 形式)
     //   用于生成 defineEmits(['eventName1', 'eventName2', ...])
-    for (const tok of b.matchAll(/this\.\$emit\s*\(\s*(['"`])([^'"`]+)\1/g)) {
-      result.emitNames.add(tok[2])
+    // iter-082: 同时收集 arg count (在 eventName 之后的逗号分隔参数数量)
+    //   同一 event 多次调用取 max(覆盖所有调用形式)
+    for (const tok of b.matchAll(/this\.\$emit\s*\(\s*(['"`])([^'"`]+)\1([^)]*)\)/g)) {
+      const name = tok[2]
+      const argsStr = tok[3] // eventName 字符串之后到右括号的内容
+      const argCount = countTopLevelCommas(argsStr)
+      result.emitNames.add(name)
+      const cur = result.emitArgCounts.get(name) ?? 0
+      if (argCount > cur) result.emitArgCounts.set(name, argCount)
     }
   }
   // 2.0.1 simultaneously check whether watch key contains $route / $router / $store (no `this.` prefix)
@@ -414,17 +425,24 @@ const injected: string[] = []
     if (result.emitNames.size > 0) {
       const eventNames = Array.from(result.emitNames).sort()
       if (isTs) {
-        // TS:  defineEmits<{ eventName: any[] }>()
-        // 注意: payload 签名是 any[] 表示任意 args,无法精准推断. 用户可以后续改
-        const tsSig = eventNames.map((n) => `${n}: any[]`).join('; ')
-        injected.push(`const emit = defineEmits<{${tsSig}}>()`)
+        // iter-082: TS 路径生成 interface EmitsPayloads + defineEmits<EmitsPayloads>()
+        // 每个事件 payload 形如 [arg1: any, arg2: any, ...], arg count 从 this.$emit 调用推
+        // 0 个参 = [] (空 tuple), 用户没传任何 payload
+        const interfaceLines = eventNames.map((n) => {
+          const count = result.emitArgCounts.get(n) ?? 0
+          if (count === 0) return `  ${n}: []`
+          const args = Array.from({ length: count }, (_, i) => `arg${i + 1}: any`).join(', ')
+          return `  ${n}: [${args}]`
+        })
+        injected.push(`interface EmitsPayloads {\n${interfaceLines.join(',\n')}\n}`)
+        injected.push('const emit = defineEmits<EmitsPayloads>()')
       } else {
-        // JS:  defineEmits(['eventName1', 'eventName2'])
+        // JS:  defineEmits(['eventName1', 'eventName2'])  (JS 仍用 array 形式, 不可带类型)
         injected.push(`const emit = defineEmits([${eventNames.map((n) => `'${n}'`).join(', ')}])`)
       }
       result.reviewItems.push(
         `检测到 ${eventNames.length} 个 emit 事件 (${eventNames.join(', ')}),已自动生成 defineEmits(...) 包含这些事件。` +
-        `\n事件 payload 类型是 any[](无精准推断), 如果需要可在 setup 里改成精确类型: e.g. const emit = defineEmits<{ update: [id: number]; close: [] }>()`,
+        `\n事件 payload arg count 从 this.$emit 调用推断 (元素类型仍是 any), 如需精确类型可在 setup 里手动改 interface EmitsPayloads (TS 模式)。`,
       )
     } else {
       // 兜底: 有 emit 但收集不到具体名字 (例如用户用了变量 emit('foo' + 'bar') 等动态)
@@ -948,6 +966,41 @@ function renameIdentifierInCode(code: any, oldName: string, newName: string): st
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * iter-082: 数 args 字符串里 top-level 逗号数量 (= arg count)。
+ *
+ * 例:
+ *   "" (空)         → 0
+ *   ", arg1"        → 1
+ *   ", arg1, arg2"  → 2
+ *   ", obj.x, [1,2]"  → 2 (嵌套 [] 里的逗号不算)
+ *   ", fn(a, b)"    → 1 (嵌套 () 里的逗号不算)
+ *
+ * 简化实现: walk 字符, 跟踪 ()/[]/{} 嵌套深度 + 字符串字面量, 深度为 0 时数逗号。
+ */
+function countTopLevelCommas(argsStr: string): number {
+  let depth = 0
+  let count = 0
+  let i = 0
+  let inStr: string | null = null  // ', ", `, or null
+  let escaped = false
+  while (i < argsStr.length) {
+    const c = argsStr[i]
+    if (inStr) {
+      if (escaped) { escaped = false; i++; continue }
+      if (c === '\\') { escaped = true; i++; continue }
+      if (c === inStr) { inStr = null; i++; continue }
+      i++; continue
+    }
+    if (c === "'" || c === '"' || c === '`') { inStr = c; i++; continue }
+    if (c === '(' || c === '[' || c === '{') { depth++; i++; continue }
+    if (c === ')' || c === ']' || c === '}') { depth--; i++; continue }
+    if (c === ',' && depth === 0) { count++; i++; continue }
+    i++
+  }
+  return count
 }
 
 function parseData(obj: any, result: OptionsToSetupResult): { fields: DataField[] } {

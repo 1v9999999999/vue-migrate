@@ -146,7 +146,10 @@ export default {
   const result = runConvert(file)
   const code = result.setupCode
 
-  assertContains('TS defineEmits uses generic form', code, ['defineEmits<{'])
+  // iter-082: TS 模式现在生成 `interface EmitsPayloads` + `defineEmits<EmitsPayloads>()`
+  // (代替 iter-046 的 inline `defineEmits<{...}>()`)
+  assertContains('TS defineEmits uses EmitsPayloads interface (iter-082)', code, ['defineEmits<EmitsPayloads>()'])
+  assertContains('TS defineEmits declares EmitsPayloads interface', code, ['interface EmitsPayloads'])
   assertContains('TS events in generic: update:visible + change',
     code,
     ['update:visible', 'change'])
