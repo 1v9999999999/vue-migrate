@@ -17,6 +17,8 @@
 
 import _traverse from '@babel/traverse'
 import * as t from '@babel/types'
+import _generate from '@babel/generator'
+const _gen: any = (_generate as any).default || _generate
 import {
   registerPlugin,
   type TransformPlugin,
@@ -61,6 +63,117 @@ const plugin: TransformPlugin = {
     let needsCreateRouter = false
     let needsCreateWebHashHistory = false
     let needsCreateWebHistory = false
+
+    // ─── Pass -1: 清理 VueRouter.prototype.{push,replace,back,forward,go} 残留 ───
+    // Vue 2 项目里 router/index.js 经常有这种「防重复跳转报错」的 hack:
+    //   const originalPush = VueRouter.prototype.push
+    //   VueRouter.prototype.push = function push(location) {
+    //     return originalPush.call(this, location).catch(err => err)
+    //   }
+    // vue-router 4 没有 prototype 上的实例方法, 这种代码会变成对 undefined 的成员访问。
+    // 整段删掉（连同 const originalPush/originalReplace 变量）。
+    // Step 1: 收集要被删的 const originalXxx = VueRouter.prototype.xxx 声明
+    const originalVarNames = new Set<string>()
+    traverse(ctx.file.scriptAst, {
+      VariableDeclaration(p: any) {
+        for (const decl of p.node.declarations) {
+          if (
+            t.isIdentifier(decl.id) &&
+            /^original[A-Z]/.test(decl.id.name) &&
+            t.isMemberExpression(decl.init) &&
+            !decl.init.computed &&
+            t.isMemberExpression(decl.init.object) &&
+            t.isIdentifier(decl.init.object.object) &&
+            (decl.init.object.object.name === 'VueRouter' ||
+              decl.init.object.object.name === 'Router')
+          ) {
+            originalVarNames.add(decl.id.name)
+          }
+        }
+      },
+    })
+    // Step 2: 删 VueRouter.prototype.{push,replace,back,forward,go} = function () {} 整段
+    traverse(ctx.file.scriptAst, {
+      ExpressionStatement(p: any) {
+        const expr = p.node.expression
+        if (!t.isAssignmentExpression(expr) || expr.operator !== '=') return
+        const left = expr.left
+        if (
+          !t.isMemberExpression(left) ||
+          left.computed ||
+          !t.isMemberExpression(left.object) ||
+          (left.object as any).computed ||
+          !t.isIdentifier((left.object as any).object)
+        ) {
+          return
+        }
+        const routerName = (left.object as any).object.name
+        if (routerName !== 'VueRouter' && routerName !== 'Router') return
+        const methodName = t.isIdentifier(left.property) ? left.property.name : null
+        if (
+          methodName !== 'push' &&
+          methodName !== 'replace' &&
+          methodName !== 'back' &&
+          methodName !== 'forward' &&
+          methodName !== 'go'
+        ) {
+          return
+        }
+        p.remove()
+        changed = true
+      },
+    })
+    // Step 3: 现在删 Step 1 收集到的 const originalXxx 声明
+    if (originalVarNames.size > 0) {
+      traverse(ctx.file.scriptAst, {
+        VariableDeclaration(p: any) {
+          let removedAny = false
+          p.node.declarations = p.node.declarations.filter((decl: any) => {
+            if (
+              t.isIdentifier(decl.id) &&
+              originalVarNames.has(decl.id.name) &&
+              t.isMemberExpression(decl.init) &&
+              !decl.init.computed
+            ) {
+              removedAny = true
+              return false
+            }
+            return true
+          })
+          if (removedAny) {
+            changed = true
+            if (p.node.declarations.length === 0) p.remove()
+          }
+        },
+      })
+    }
+
+    // ─── Pass -0.5: 删 ConditionalExpression 里的 Vue.use(Router) ───
+    // 形如: `process.env.NODE_ENV === "development" ? Vue.use(Router) : null;`
+    // Pass 0 只匹配 ExpressionStatement 顶层的 CallExpression, 漏掉条件里的。
+    traverse(ctx.file.scriptAst, {
+      ExpressionStatement(path: any) {
+        const expr = path.node.expression
+        if (!t.isConditionalExpression(expr)) return
+        const checkVueUse = (node: any): boolean => {
+          if (!t.isCallExpression(node)) return false
+          const c = node.callee
+          return (
+            t.isMemberExpression(c) &&
+            !c.computed &&
+            t.isIdentifier(c.object, { name: 'Vue' }) &&
+            t.isIdentifier(c.property, { name: 'use' }) &&
+            node.arguments.length === 1 &&
+            t.isIdentifier(node.arguments[0]) &&
+            (node.arguments[0].name === 'Router' || node.arguments[0].name === 'VueRouter')
+          )
+        }
+        if (checkVueUse(expr.consequent) || checkVueUse(expr.alternate)) {
+          path.remove()
+          changed = true
+        }
+      },
+    })
 
     // ─── Pass 0: 清理 Vue.use(Router) / Vue.use(VueRouter) ───
     // vue-router 4 不再走 Vue.use(plugin) 安装。Vue 2 的 router/index.js 几乎一定有
@@ -506,7 +619,23 @@ for (const name of names) { const already = existing.specifiers.some(
 
     // 输出 review
 for (const r of reviewItems) ctx.utils.manualReview(r)
-if (changed) { ctx.utils.markChanged('vue-router 2/3 → 4') }
+if (changed) {
+  ctx.utils.markChanged('vue-router 2/3 → 4')
+  // iter-046: sync scriptAst → file.source（避免后续 store-bridge 覆盖 useRawSource=true
+  //   时把已删的 Vue 2 残留（VueRouter.prototype.push 等）原样写回输出）。
+  //   .vue 走 syncScriptAstToSource (.sfc.script 替换); .js/.ts 整文件替换。
+  if (ctx.file.kind === 'vue') {
+    try { ctx.utils.syncScriptAstToSource() } catch (e: any) { /* fallback: codegen 仍能走 ast */ }
+  } else {
+    try {
+      const generated = _gen(ctx.file.scriptAst as any, {
+        retainLines: false, comments: true, compact: false, jsescOption: { minimal: true },
+      }).code
+      ctx.file.source = generated
+      ;(ctx.file as any).useRawSource = true
+    } catch (e: any) { /* fallback: codegen 走 ast */ }
+  }
+}
   },
 }
 
