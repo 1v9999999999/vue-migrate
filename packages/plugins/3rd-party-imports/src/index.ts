@@ -32,6 +32,7 @@ import {
   fixCjsDefaultToNamed,
   type CjsDefaultToNamedRule,
 } from './rules/import-cjs-default-to-named.js'
+import { fixElementPlusLibToEs } from './rules/element-plus-lib-to-es.js'
 
 const DEFAULT_TO_NAMESPACE_RULES: DefaultToNamespaceRule[] = [
   // screenfull v6 只有 default export (`export default screenfull`),
@@ -63,6 +64,20 @@ const CJS_DEFAULT_TO_NAMED_RULES: CjsDefaultToNamedRule[] = [
   },
 ]
 
+/**
+ * iter-048: ESM 库 default 改 named (driver.js v1.8 无 default export).
+ *  - driver.js v1.8: 只有 named `driver` export, default 不可用
+ *  - 用户的代码用 `Driver.xxx()` 不变, 改 import 让 `Driver = driver` 即可
+ */
+const ESM_DEFAULT_TO_NAMED_RULES: CjsDefaultToNamedRule[] = [
+  {
+    name: 'driver.js',
+    type: 'named',
+    namedImports: { default: 'driver' },
+    reason: 'driver.js v1.8 已无 default export,只有 named `driver`',
+  },
+]
+
 const plugin: TransformPlugin = {
   name: '3rd-party-imports',
   description:
@@ -80,8 +95,12 @@ const plugin: TransformPlugin = {
     const r3 = fixDefaultToNamespace(ctx, DEFAULT_TO_NAMESPACE_RULES)
     // iter-048a F4: CJS 库 default import 转换 (xlsx/jszip/file-saver)
     const r4 = fixCjsDefaultToNamed(ctx, CJS_DEFAULT_TO_NAMED_RULES)
+    // iter-048: ESM 库 default 改 named (driver.js 等)
+    const r5 = fixCjsDefaultToNamed(ctx, ESM_DEFAULT_TO_NAMED_RULES)
+    // iter-048: sub-path 改写 (element-plus v2 路径: lib/ → es/)
+    const r6 = fixElementPlusLibToEs(ctx)
     // 写回 file.source（plugin 改 AST 后必须 sync）
-    if (r1.changed || r2.changed || r3.changed || r4.changed) {
+    if (r1.changed || r2.changed || r3.changed || r4.changed || r5.changed || r6.changed) {
       ctx.syncScriptAstToSource()
     }
   },

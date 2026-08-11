@@ -60,11 +60,31 @@ export function fixCjsDefaultToNamed(
       const node = path.node
       if (!t.isStringLiteral(node.source)) return
       const pkg = node.source.value
-      const rule = ruleByName.get(pkg)
+
+      // iter-048: 支持 sub-path 改写 (e.g. 'element-plus/lib/locale/lang/en' → 'element-plus/es/locale/lang/en')
+      // 规则可以提供 pathRewrite 函数处理 sub-path
+      const subPathMatch = Object.entries((rules as any).__subPathRewrite || {}).find(
+        ([from]) => pkg === from,
+      ) as [string, (pkg: string) => string] | undefined
+
+      let rule = ruleByName.get(pkg)
+      let isSubPathRewrite = false
+      if (!rule && subPathMatch) {
+        const [from, rewrite] = subPathMatch
+        const newPkg = rewrite(from)
+        if (newPkg !== from) {
+          path.node.source = t.stringLiteral(newPkg)
+          changed = true
+          hits.push(`${from} → ${newPkg}`)
+          ctx.utils.markChanged(`${from}: sub-path 改写 (${rules.find((r: any) => (r as any).subPathFrom === from)?.reason || 'Vue 3 / element-plus v2 路径'})`)
+          return
+        }
+      }
+
       if (!rule) return
 
-      // 跳过 sub-path
-      if (pkg.includes('/')) return
+      // 跳过非 sub-path 规则的 sub-path
+      if (pkg.includes('/') && !isSubPathRewrite) return
 
       // 已经是 namespace import: 不动
       const isNamespace = node.specifiers.some((s: any) =>

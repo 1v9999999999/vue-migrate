@@ -148,12 +148,37 @@ const plugin: TransformPlugin = {
       //     注意: 只在 'pinia' 那个 useStore 上做; 如果之前用户代码里也用 useStore
       //     作别的用途 (e.g. useStoreSelector), 不能误改. 简单起见,我们对所有 `useStore()`
       //     都改 — 99% 的 vue-element-admin 用法都是 pinia useStore().
-      processTarget = processTarget.replace(/\buseStore\s*\(\s*\)/g, 'useAppStore()')
-      storeImportsNeeded.add('useAppStore')
+      // iter-048 智能 fallback: 优先从本文件已 import 的 useXxxStore 选一个
+      //   (e.g. useAuthStore), 因为这个 store 一定存在. 找不到才兜底 useAppStore.
+      const existingStoreRe = /import\s*\{\s*([^}]*)\}\s*from\s*['"][^'"]*store[^'"]*['"]/g
+      const importedStores: string[] = []
+      let sm: RegExpExecArray | null
+      while ((sm = existingStoreRe.exec(processTarget)) !== null) {
+        const names = sm[1].split(',').map((s: string) => s.trim()).filter(Boolean)
+        for (const n of names) {
+          if (/^use[A-Z]\w*Store$/.test(n)) importedStores.push(n)
+        }
+      }
+      const preferOrder = ['useAppStore', 'useUserStore', 'useAuthStore', 'useSettingsStore']
+      let fallbackStore: string = 'useAppStore'  // default
+      for (const cand of preferOrder) {
+        if (importedStores.includes(cand)) { fallbackStore = cand; break }
+      }
+      if (!preferOrder.includes(fallbackStore) && importedStores.length > 0) {
+        fallbackStore = importedStores[0]
+      }
+      // 1b. 替换 `useStore()` 调用 (无参) → 智能 fallback store
+      //     用单词边界避免误匹配 useStoreHook / useStoredXxx
+      //     注意: 只在 'pinia' 那个 useStore 上做; 如果之前用户代码里也用 useStore
+      //     作别的用途 (e.g. useStoreSelector), 不能误改. 简单起见,我们对所有 `useStore()`
+      //     都改 — 99% 的 vue-element-admin 用法都是 pinia useStore().
+      processTarget = processTarget.replace(/\buseStore\s*\(\s*\)/g, fallbackStore + '()')
+      storeImportsNeeded.add(fallbackStore)
+      const fallbackHint = importedStores.length > 0
+        ? '(智能 fallback: 选了已 import 的 ' + fallbackStore + ', 避免 "is not exported" 错)'
+        : '(无 store 已 import, 兜底到 useAppStore。如果实际是别的 store, 请手动调整。)'
       reviewItems.push(
-        'useStore() 无参调用已替换成 useAppStore() (Pinia 不支持 useStore() no-arg, ' +
-        '会抛 "no active pinia" 错)。如果实际用的是别的 store (e.g. user/settings), ' +
-        '请手动调整 import 名字。',
+        'useStore() 无参调用已替换成 ' + fallbackStore + '() ' + fallbackHint,
       )
     }
 

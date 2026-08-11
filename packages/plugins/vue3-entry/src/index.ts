@@ -401,6 +401,24 @@ function _runEntryTransform(ctx) {
               statementsToRemove.push({ path, reason: 'filter-removed' })
               utils.markChanged('Vue.filter() removed (Vue3 has no filters)')
             } else {
+              // iter-048: Vue.use(Router) / Vue.use(VueRouter) — vue-router 4 plugin
+              //   已经删了 default import (import Router from 'vue-router' 不再存在),
+              //   这里 VueRouter/Router 是未定义引用. 同文件通常已经有
+              //   `import router from './router'` 并被 .use(router) 注册, 这个 install
+              //   调用是重复且会运行时崩 (VueRouter is not defined).
+              //   跳过它 + 标 review.
+              if (methodName === 'use' && expr.arguments.length === 1 && t.isIdentifier(expr.arguments[0])) {
+                const argName = (expr.arguments[0] as t.Identifier).name
+                const binding = path.scope.getBinding(argName)
+                if (argName === 'Router' || argName === 'VueRouter' || !binding) {
+                  // 参数是 Router/VueRouter (vue-router 2/3 默认导入) → 跳过
+                  statementsToRemove.push({ path, reason: 'router-install-skip' })
+                  utils.manualReview(
+                    `Vue.use(${argName}) 已被跳过 (vue-router 4 不再需要 install 步骤; 同文件通常已经 \`import router from './router'\` + .use(router), 重复注册会运行时崩).`,
+                  )
+                  return
+                }
+              }
               chainItems.push({
                 method: methodName,
                 args: expr.arguments.filter((a): a is t.Expression => t.isExpression(a)),

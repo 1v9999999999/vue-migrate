@@ -56,6 +56,21 @@ const plugin: TransformPlugin = {
       if (r === 'changed') {
         // 确保 `defineStore` 已被 import (从 'pinia')
         ensureDefineStoreImport(ctx)
+        // iter-048: 同步 scriptAst → file.source (避免后续 store-bridge 走 raw-source
+        //   路径时, 把 useXxxStore / 删除 const state 等已改的 ast 节点原样写回输出).
+        //   - .vue 走 syncScriptAstToSource (.sfc.script 替换)
+        //   - .js/.ts 整文件 generate 替换
+        if (ctx.file.kind === 'vue') {
+          try { ctx.utils.syncScriptAstToSource() } catch (e: any) { /* fallback: codegen 仍能走 ast */ }
+        } else {
+          try {
+            const generated = generate(ctx.file.scriptAst as any, {
+              retainLines: false, comments: true, compact: false, jsescOption: { minimal: true },
+            }).code
+            ctx.file.source = generated
+            ;(ctx.file as any).useRawSource = true
+          } catch (e: any) { /* fallback: codegen 走 ast */ }
+        }
         return
       }
       // 不是标准 vuex module 模式 (没有 state/mutations/actions + export default)
