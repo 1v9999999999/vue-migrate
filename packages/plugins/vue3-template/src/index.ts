@@ -30,7 +30,7 @@ import { removeInlineTemplate } from './rules/inline-template.js'
 import { migrateScriptInstances } from './rules/script-instances.js'
 import { removeNativeModifier } from './rules/native-modifier.js'
 import { convertPrefixIconToSlot } from './rules/prefix-icon-to-slot.js'
-import { reviewVAttrsVListeners } from './rules/vbind-vattrs-vlisteners.js'
+import { reviewVAttrsVListeners, autoFixVOnAttrsListeners } from './rules/vbind-vattrs-vlisteners.js'
 
 const plugin: TransformPlugin = {
   name: 'vue3-template',
@@ -131,7 +131,27 @@ const plugin: TransformPlugin = {
         const vattrsResult = reviewVAttrsVListeners(template)
         if (vattrsResult.changed) {
           for (const c of vattrsResult.changes) messages.push(c)
-          for (const r of vattrsResult.reviewItems) utils.manualReview(r)
+          // iter-115: 降级为 ctx.log — v-bind="$attrs" Vue3 仍可用, v-on="$listeners"/"$attrs" 已被 autoFixVOnAttrsListeners 自动改
+          //      真正的 inheritAttrs 设计选择属业务决策 (T2.6/T3.3 保留, 不强行改)
+          for (const r of vattrsResult.reviewItems) ctx.log(`[vue3-template] ${r}`)
+        }
+
+        // 6.5. iter-112: 自动改 v-on="$listeners" / v-on="$attrs" → v-bind="$attrs"
+        //   字符串级 replace, 不依赖 attr.start/end offset (避免跟 template offset 错位)
+        //   review 提示跟 auto-fix 并行: 用户能看到 review 学到, 同时 source 也修了
+        const autoFixed = autoFixVOnAttrsListeners(template)
+        if (autoFixed !== template) {
+          // 重新替换 template
+          if (file.sfc?.template) {
+            const tpl = file.sfc.template
+            const start = tpl.loc.start.offset
+            const end = tpl.loc.end.offset
+            file.source = file.source.slice(0, start) + autoFixed + file.source.slice(end)
+            // sync sfc loc (template 内容变了)
+            tpl.loc.end.offset = start + autoFixed.length
+            tpl.content = autoFixed
+          }
+          messages.push('[iter-112] auto-fixed v-on="$listeners"/"$attrs" → v-bind="$attrs"')
         }
       }
     }

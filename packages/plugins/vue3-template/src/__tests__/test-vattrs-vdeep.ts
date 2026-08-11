@@ -2,15 +2,21 @@
  * iter-048a F2 单测: ::v-deep / /deep/ / >>> 改写 + review
  *  + v-bind="$attrs" / v-on="$listeners" review
  */
-import { reviewVAttrsVListeners } from '../rules/vbind-vattrs-vlisteners.js'
+import { reviewVAttrsVListeners, autoFixVOnAttrsListeners } from '../rules/vbind-vattrs-vlisteners.js'
 
 let pass = 0
 let fail = 0
 const failures: string[] = []
 
-function assertTransform(name: string, input: string, expected: string): void {
-  const r = reviewVAttrsVListeners(input)
-  if (r.out.trim() === expected.trim()) {
+function assertTransform(
+  name: string,
+  input: string,
+  expected: string,
+  transform: (s: string) => any = reviewVAttrsVListeners,
+): void {
+  const r = transform(input)
+  const out = typeof r === 'string' ? r : r.out
+  if (out.trim() === expected.trim()) {
     pass++
     console.log(`  ✓ ${name}`)
   } else {
@@ -91,16 +97,21 @@ assertReview(
   'inheritAttrs',
 )
 
-assertReview(
-  'v-on="$listeners" 标 review',
+// iter-112: v-on="$listeners" 改成自动修 (→ v-bind="$attrs"), 不再标 review
+//   autoFixVOnAttrsListeners 是字符串级 replace, 跟 reviewVAttrsVListeners (标 review) 并行
+assertTransform(
+  'v-on="$listeners" → v-bind="$attrs" (iter-112 自动改)',
   `<my-input v-on="$listeners" />`,
-  '已废弃',
+  `<my-input v-bind="$attrs" />`,
+  (input) => autoFixVOnAttrsListeners(input),
 )
 
-assertReview(
-  'v-on="$attrs" 错用 标 review',
+// iter-112: v-on="$attrs" 改成自动修 (Vue 2 bug, 风险极低), 不再标 review
+assertTransform(
+  'v-on="$attrs" → v-bind="$attrs" (iter-112 自动改 Vue 2 bug)',
   `<my-input v-on="$attrs" />`,
-  'v-bind',
+  `<my-input v-bind="$attrs" />`,
+  (input) => autoFixVOnAttrsListeners(input),
 )
 
 // ============ Regression: 不动普通模板 ============

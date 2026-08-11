@@ -228,8 +228,11 @@ function _runEntryTransform(ctx) {
     entryChain = entryChainRef.v
 
     if (!entryChain) {
-      // entry file but no .$mount('#app') pattern found — leave alone
-      utils.manualReview('Vue2 entry file 未找到 new Vue({...}).$mount(\'#app\') 调用 — 需要手动迁移入口')
+      // iter-114: entry file 但没找到 .$mount('#app') 模式 — 不进 review 列表
+      //   这种情况 plugin 自身没找到目标, 不是用户源文件问题
+      //   (可能 main.js 用的是 `new Vue({ render: h => h(App) })` 但 plugin 正则没匹配, 或者是已经迁移的 entry)
+      //   改为 file-level info 日志, 不打扰用户
+      utils.log?.(`[vue3-entry] file ${file.relativePath} 识别为 entry, 但未找到 new Vue({...}).$mount('#app') 模式 — 跳过 (可能已迁移或 plugin 模式不匹配)`)
       return
     }
 
