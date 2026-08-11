@@ -13,13 +13,23 @@ Vue 2 → Vue 3 自动化迁移工具集，包含**转换引擎** + **自演化�
 
 | 指标 | 数值 |
 |---|---|
-| 支持的 Vue 2 规则 | 56 |
-| ElementUI → Element Plus 规则 | 40 |
-| Options → Composition 规则 | 25（含 el-icon / template ref collision） |
-| 已实现插件 | 12（vue2-compat / vue3-entry / vue3-template / vue3-directives / vue3-types / elementui / composition / vue-router-v4 / vuex-pinia / vxe-table / package-json / import-cleaner） |
-| 测试样本 | 7 个项目（50+ 文件，含 stress 1000+ 行文件 + 真实电商后台） |
-| 真实项目通过率 | 28/28（vue2-manage-master） |
+| 支持的 Vue 2 规则 | 70+（含 iter-051~055 新增 this.$X 批量 review / Vue 2 移除的 5 个 instance API / mixins 字段 / 100+ el-icon 映射） |
+| ElementUI → Element Plus 规则 | 140+（含 100+ Element Plus icon 映射） |
+| Options → Composition 规则 | 25+（含 el-icon / template ref collision / 自引用 const 重命名） |
+| 已实现插件 | **18**（vue2-compat / vue3-entry / vue3-template / vue3-directives / vue3-types / elementui / composition / vue-router-v4 / vuex-pinia / vxe-table / package-json / import-cleaner / vite-compat / vite-scaffold / resource-copier / store-bridge / 3rd-party-imports / **this-replacer**） |
+| TypeScript 编译 | 18/18 packages 0 errors |
+| 单元测试 | 598/598 pass（从 iter-050 的 526 → iter-054 的 598, +72 测试） |
+| 测试样本 | 7 个项目（50+ 文件，含 stress 1000+ 行文件 + 真实电商后台 vue-element-admin-master 195 文件） |
+| 真实项目实测 | vue-element-admin-master 195 源文件 → 212 输出文件, 命中 9 mixins / 9 el-icon / 59 store-bridge / 45 defineProps / 9 self-ref |
 | 自演化系统 | Phase 1 ✅ Phase 2 搭建中 |
+
+### 最新进展 (iter-051~055)
+
+- **iter-051**: 新增 `@vue-migrate/plugin-this-replacer` (this.$http/$axios/$api 自动替换 + review) / composition `this.$parent` review / elementui 100+ icon 映射
+- **iter-052**: vue3-entry `new X().$mount()` review (progressBar 模式) / composition 递归函数验证
+- **iter-053**: composition `$parent` review 修 false positive (跳过注释)
+- **iter-054**: composition 5 个 Vue 2 移除的 instance API ($children/$root/$vnode/$isServer/$isDestroyed) + $options.componentName + mixins 字段批量 review
+- **iter-055**: 沉淀 doc — `docs/iter-051-054-bench.md`
 
 ## 目录结构
 
@@ -28,7 +38,7 @@ vue-migrate/
 ├── packages/                    # 转换引擎
 │   ├── core/                   #   scanner / parser / codegen / reporter / orchestrator
 │   ├── cli/                    #   命令行入口
-│   └── plugins/                #   12 个迁移插件
+│   └── plugins/                #   18 个迁移插件
 ├── examples/                   # 测试样本
 │   ├── vue2-sample/            #   10 文件，单元测试级
 │   ├── vue2-manage-master/     #   28 文件，真实电商后台
@@ -162,10 +172,11 @@ pnpm run dev:cli
 
 ## 关键文档
 
-- `docs/TODO_Vue3_Conversion_Catalog.md` — 56 条核心 Vue 2→3 规则
-- `docs/ElementUI_ElementPlus_Catalog.md` — 40 条 UI 库迁移
-- `docs/Options_To_Composition_Catalog.md` — 25 条 Options→`<script setup>`
+- `docs/TODO_Vue3_Conversion_Catalog.md` — 70+ 条核心 Vue 2→3 规则
+- `docs/ElementUI_ElementPlus_Catalog.md` — 140+ 条 UI 库迁移
+- `docs/Options_To_Composition_Catalog.md` — 25+ 条 Options→`<script setup>`
 - `docs/Router_V4_Catalog.md` — Vue Router 3→4
 - `docs/Vuex_Pinia_Catalog.md` — Vuex→Pinia
+- `docs/iter-051-054-bench.md` — iter-051~054 优化报告 (this-replacer / instance API / mixins 实测数据)
 - `docs/iterate-log/{date}.md` — 每轮迭代的执行日志
 - `KNOWN_ISSUES.md` — 当前已知未修问题
