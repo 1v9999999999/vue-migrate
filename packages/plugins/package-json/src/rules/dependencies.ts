@@ -90,12 +90,18 @@ export const DEP_MAP: Record<string, DepMapEntry> = {
     manualReview:
       'driver.js 0.x→1.x API 调整：`new Driver({...})` 改为 `new Driver({ className, ...})`，`driver.defineSteps([...])` 改 `driver.setSteps([...])`。guide/index.vue 需手动适配。',
   },
-  // tui-editor: 1.x 已弃用，官方迁移到无 Vue 包装的 @toast-ui/editor
+  // tui-editor: 1.x 已弃用,官方迁移到无 Vue 包装的 @toast-ui/editor
   'tui-editor': {
     name: '@toast-ui/editor',
     version: '^3.2.0',
     manualReview:
-      'tui-editor 1.x 已停止维护；新版不再提供 Vue 包装。本自动迁移会改包名但不会自动加 Vue3 包装；markdown.vue 等需重写或换 monaco-editor / codemirror 6。',
+      'tui-editor 1.x 已停止维护;新版不再提供 Vue 包装。本自动迁移会改包名但不会自动加 Vue3 包装;markdown.vue 等需重写或换 monaco-editor / codemirror 6。',
+  },
+  // @element-plus/icons-vue: Element Plus 2.3+ 才有. 如果代码里 import 自这个包, 但 deps 缺, 必须注入
+  // (P0 #4: 13+ 个文件 import 自 @element-plus/icons-vue 但 package.json 缺这个包 → build 挂)
+  '@element-plus/icons-vue': {
+    name: '@element-plus/icons-vue',
+    version: '^2.3.0',
   },
   // vue-splitpane: 1.0.4 是 Vue2 only，社区有 Vue3 fork
   'vue-splitpane': {

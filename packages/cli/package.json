@@ -27,6 +27,9 @@
     "@vue-migrate/plugin-vite-compat": "workspace:*",
     "@vue-migrate/plugin-vite-scaffold": "workspace:*",
     "@vue-migrate/plugin-resource-copier": "workspace:*",
+    "@vue-migrate/plugin-auto-import-components": "workspace:*",
+    "@vue-migrate/plugin-v-model-emit-fixer": "workspace:*",
+    "@vue-migrate/plugin-view-fix": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {

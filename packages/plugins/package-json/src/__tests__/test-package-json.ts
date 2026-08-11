@@ -565,6 +565,78 @@ console.log('\n[iter-050a P0#4: @element-plus/icons-vue 扫 import]')
   }
 }
 
+// ============ iter-050a: isVue2Project 边界 ============
+console.log('\n[iter-050a: isVue2Project 边界]')
+
+{
+  // 直接 require 私有函数
+  const { isVue2Project } = await import('../index.js').then((m: any) => m._testable) as any
+  // 边界场景 — 我们需要 isVue2Project 接受:
+  assertTrue('vue ^2.6.11 = true', isVue2Project({ dependencies: { vue: '^2.6.11' } }))
+  assertTrue('vue 2.6.10 = true', isVue2Project({ dependencies: { vue: '2.6.10' } }))
+  assertTrue('vue ~2.5.0 = true', isVue2Project({ dependencies: { vue: '~2.5.0' } }))
+  assertTrue('vue ^3.0.0 + vue-cli-service script = true',
+    isVue2Project({ dependencies: { vue: '^3.0.0' }, scripts: { dev: 'vue-cli-service serve' } }))
+  assertTrue('vue ^3.0.0 + @vue/cli-service devDep = true',
+    isVue2Project({ dependencies: { vue: '^3.0.0' }, devDependencies: { '@vue/cli-service': '~5.0.0' } }))
+  assertTrue('element-ui 残留 = true',
+    isVue2Project({ dependencies: { element_ui: '2.13.0' } } as any) || isVue2Project({ dependencies: { 'element-ui': '2.13.0' } }))
+  assertTrue('纯 vue ^3 + vite = false',
+    !isVue2Project({ dependencies: { vue: '^3.4.0' }, devDependencies: { vite: '^5.0.0' }, scripts: { dev: 'vite' } }))
+  assertTrue('空 = false', !isVue2Project({}))
+  assertTrue('null = false', !isVue2Project(null as any))
+}
+
+// ============ iter-050a: P0#4 真实 analyze 钩子 ============
+console.log('\n[iter-050a: P0#4 analyze 钩子]')
+
+{
+  // 模拟一个 vue 2 项目 + 部分转过, 但 deps 没 icons-vue + 代码 import 了 icons-vue
+  const { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join: pathJoin } = await import('node:path')
+
+  const root = mkdtempSync(pathJoin(tmpdir(), 'vmig-pkg-icons-'))
+  const outDir = mkdtempSync(pathJoin(tmpdir(), 'vmig-pkg-icons-out-'))
+
+  // 源 package.json: 有 element-plus, 没 icons-vue
+  writeFileSync(pathJoin(root, 'package.json'), JSON.stringify({
+    name: 'demo',
+    dependencies: { vue: '^2.6.11', 'element-ui': '^2.13.2' },
+    scripts: { dev: 'vue-cli-service serve' },
+  }, null, 2))
+  // 源 src/zip/index.vue: 用了 icons-vue
+  mkdirSync(pathJoin(root, 'src', 'views', 'zip'), { recursive: true })
+  writeFileSync(pathJoin(root, 'src', 'views', 'zip', 'index.vue'),
+    '<script setup>\nimport { Document } from "@element-plus/icons-vue"\n</script>\n<template><div></div></template>')
+
+  // 直接调 analyze
+  const { default: plugin } = await import('../index.js') as any
+  const ctx = {
+    root,
+    files: new Map<string, any>([[
+      pathJoin(root, 'src', 'views', 'zip', 'index.vue'),
+      { path: pathJoin(root, 'src', 'views', 'zip', 'index.vue'), source: '<script setup>\nimport { Document } from "@element-plus/icons-vue"\n</script>\n<template><div></div></template>' },
+    ]]),
+    dependencyGraph: new Map(),
+    typeCache: new Map(),
+    plugins: [],
+    stats: { totalFiles: 0, modifiedFiles: 0, newTypesInferred: 0, manualReviewRequired: 0, errors: 0 },
+    config: { outDir, dryRun: false, keepStructure: false, plugins: [] },
+    storeNames: {},
+  }
+  if (plugin.analyze) await plugin.analyze(ctx)
+
+  const outPkg = JSON.parse(readFileSync(pathJoin(outDir, 'package.json'), 'utf-8'))
+  assertTrue('element-plus 已加', !!outPkg.dependencies['element-plus'])
+  assertTrue('@element-plus/icons-vue 已自动注入', !!outPkg.dependencies['@element-plus/icons-vue'])
+  assertEq('icons-vue 版本 ^2.3.0', outPkg.dependencies['@element-plus/icons-vue'], '^2.3.0')
+  assertTrue('dev 脚本改 vite', outPkg.scripts.dev === 'vite')
+
+  rmSync(root, { recursive: true, force: true })
+  rmSync(outDir, { recursive: true, force: true })
+}
+
 // ============ 总结 ============
 console.log(`\ntests ${pass + fail} pass ${pass} fail ${fail}`)
 if (fail > 0) {

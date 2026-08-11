@@ -1,0 +1,16 @@
+{
+  "name": "@vue-migrate/plugin-view-fix",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Fix specific view-level Vue 2 → Vue 3 migration bugs that other plugins can't handle: SvgIcon/Link isExternal name shadow, dashboard currentRole string, FixedThead defaultFormThead missing, Sidebar Item.vue empty template, popper-append-to-body deprecation, etc.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.9",
+    "typescript": "^5.5.0"
+  }
+}

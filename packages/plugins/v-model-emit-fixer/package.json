@@ -1,0 +1,16 @@
+{
+  "name": "@vue-migrate/plugin-v-model-emit-fixer",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "Fix Vue 2 style `emit('input', ...)` to Vue 3 `emit('update:modelValue', ...)` in <script setup>. Resolves P1 #15 (v-model on children like FilenameOption, AutoWidthOption, BookTypeOption, Upload, MarkdownEditor, Tinymce, JsonEditor, ImageCropper, MDinput, Dropdown components).",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.9",
+    "typescript": "^5.5.0"
+  }
+}

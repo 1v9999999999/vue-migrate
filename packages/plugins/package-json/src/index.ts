@@ -58,9 +58,31 @@ function projectImportsElementPlusIcons(ctx: ProjectContext): boolean {
 }
 
 function isVue2Project(pkg: PkgJson): boolean {
+  // iter-050a: 让 isVue2Project 更宽松, 支持以下场景:
+  // 1) 源项目: deps.vue 是 ^2.x 或 2.x (Vue 2 时代)
+  // 2) 已经 iter-048 转过: deps.vue 是 ^3.x, 但 scripts 仍含 vue-cli-service (漏网之鱼)
+  // 3) 已经 iter-048 转过: deps.vue 是 ^3.x, 但 devDeps 仍含 @vue/cli-service
+  // 4) 任何 deps 包含 element-ui (Vue 2 UI 库, Vue 3 不会装这个)
+  // 这样 package-json 重新跑时, 仍能完成 deps 注入 / scripts 重写 / icons-vue 注入等
   const vue = pkg?.dependencies?.['vue']
-  if (typeof vue !== 'string') return false
-  return /^[\^~]?2\./.test(vue) || /^2\./.test(vue)
+  if (typeof vue === 'string' && (/^[\^~]?2\./.test(vue) || /^2\./.test(vue))) {
+    return true
+  }
+  // scripts 检查 vue-cli-service
+  const scripts = pkg?.scripts
+  if (scripts && typeof scripts === 'object') {
+    for (const v of Object.values(scripts)) {
+      if (typeof v === 'string' && v.includes('vue-cli-service')) return true
+    }
+  }
+  // devDeps 检查 @vue/cli-service
+  const dd = pkg?.devDependencies
+  if (dd && typeof dd === 'object' && ('@vue/cli-service' in dd || 'vue-cli-plugin-element' in dd)) {
+    return true
+  }
+  // element-ui 是 Vue 2 时代产物
+  if (pkg?.dependencies?.['element-ui']) return true
+  return false
 }
 
 /**

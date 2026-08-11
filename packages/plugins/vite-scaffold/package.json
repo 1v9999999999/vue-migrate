@@ -9,7 +9,8 @@
     "@vue-migrate/core": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.9",
+    "typescript": "^5.5.0"
   }
 }

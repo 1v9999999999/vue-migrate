@@ -23,6 +23,9 @@ importers:
       '@vue-migrate/plugin-3rd-party-imports':
         specifier: workspace:*
         version: link:../plugins/3rd-party-imports
+      '@vue-migrate/plugin-auto-import-components':
+        specifier: workspace:*
+        version: link:../plugins/auto-import-components
       '@vue-migrate/plugin-composition':
         specifier: workspace:*
         version: link:../plugins/composition
@@ -41,6 +44,12 @@ importers:
       '@vue-migrate/plugin-store-bridge':
         specifier: workspace:*
         version: link:../plugins/store-bridge
+      '@vue-migrate/plugin-v-model-emit-fixer':
+        specifier: workspace:*
+        version: link:../plugins/v-model-emit-fixer
+      '@vue-migrate/plugin-view-fix':
+        specifier: workspace:*
+        version: link:../plugins/view-fix
       '@vue-migrate/plugin-vite-compat':
         specifier: workspace:*
         version: link:../plugins/vite-compat
@@ -138,6 +147,22 @@ importers:
         specifier: ^5.5.0
         version: 5.5.2
 
+  packages/plugins/auto-import-components:
+    dependencies:
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      tsx:
+        specifier: ^4.23.9
+        version: 4.23.9
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
   packages/plugins/composition:
     dependencies:
       '@babel/generator':
@@ -222,6 +247,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
+      tsx:
+        specifier: ^4.23.9
+        version: 4.23.9
       typescript:
         specifier: ^5.5.0
         version: 5.5.2
@@ -235,6 +263,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
+      tsx:
+        specifier: ^4.23.9
+        version: 4.23.9
       typescript:
         specifier: ^5.5.0
         version: 5.5.2
@@ -286,6 +317,38 @@ importers:
         specifier: ^5.5.0
         version: 5.5.2
 
+  packages/plugins/v-model-emit-fixer:
+    dependencies:
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      tsx:
+        specifier: ^4.23.9
+        version: 4.23.9
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
+  packages/plugins/view-fix:
+    dependencies:
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      tsx:
+        specifier: ^4.23.9
+        version: 4.23.9
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
   packages/plugins/vite-compat:
     dependencies:
       '@babel/parser':
@@ -317,6 +380,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
+      tsx:
+        specifier: ^4.23.9
+        version: 4.23.9
       typescript:
         specifier: ^5.5.0
         version: 5.5.2

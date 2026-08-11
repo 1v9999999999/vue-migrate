@@ -25,6 +25,11 @@ import '@vue-migrate/plugin-3rd-party-imports'
 import '@vue-migrate/plugin-package-json'
 import '@vue-migrate/plugin-import-cleaner'
 import '@vue-migrate/plugin-vite-compat'
+import '@vue-migrate/plugin-vite-scaffold'   // iter-049a P0 #1/#2/#3: vite.config.js + index.html + public/
+import '@vue-migrate/plugin-resource-copier' // iter-049a P0 #6/#7/#8: 复制 waves.css + TodoList/index.scss + 47 svg
+import '@vue-migrate/plugin-auto-import-components'  // iter-049a P1 #16-18 + #58-63: 自动 import 缺组件
+import '@vue-migrate/plugin-v-model-emit-fixer'  // iter-049a P1 #15: emit('input') → update:modelValue
+import '@vue-migrate/plugin-view-fix'  // iter-049a: 修 BUG-009/010/011/012/013/014/068/070
 import '@vue-migrate/plugin-vite-scaffold'
 import '@vue-migrate/plugin-resource-copier'
 import '@vue-migrate/plugin-this-replacer'
