@@ -494,6 +494,70 @@ function f() {
   assertContains('useAppStore().toggleSideBar() kept (action call)', script, ['useAppStore().toggleSideBar()'])
 }
 
+// =================================================================
+// iter-109: dedup imports — 不重复 import 已经存在的 useXxxStore
+// =================================================================
+
+console.log('\n[store-bridge: dedup imports — 跳过已 import 的 store]')
+{
+  // 场景 1: 文件已经 `import { useAppStore } from '@/store/modules/app'`,
+  //         store-bridge 不能再补一行 `import { useAppStore } from '@/store'`
+  const input1 = `import { useAppStore } from '@/store/modules/app';
+import { useUserStore } from '@/store/modules/user';
+export const getters = {
+  sidebar: () => useAppStore().sidebar,
+  token: () => useUserStore().token
+};
+const x = store.getters.token;`
+
+  const file1 = makeFile('/store/getters.js', input1, 'js')
+  runTransform(file1)
+
+  // 期望: 不再补 `import { useAppStore } from '@/store'` (因为已经 from @/store/modules/app)
+  // 检查: 不能出现 `useAppStore has already been declared` (即不出现重复的 import line)
+  const appStoreImportCount = (file1.source.match(/import\s*\{[^}]*useAppStore[^}]*\}\s*from\s*['"]@?\/store[^'"]*['"]/g) || []).length
+  assertContains(
+    'iter-109: useAppStore from @/store/modules/* 不再补 @/store 主入口',
+    file1.source,
+    [String(appStoreImportCount) === '1' ? 'ok' : 'fail']
+  )
+
+  // 也检查 useUserStore
+  const userStoreImportCount = (file1.source.match(/import\s*\{[^}]*useUserStore[^}]*\}\s*from\s*['"]@?\/store[^'"]*['"]/g) || []).length
+  assertContains(
+    'iter-109: useUserStore from @/store/modules/* 不再补 @/store 主入口',
+    file1.source,
+    [String(userStoreImportCount) === '1' ? 'ok' : 'fail']
+  )
+}
+
+console.log('\n[store-bridge: dedup imports — 已有 @/store import 时合并]')
+{
+  // 场景 2: 文件已经 `import { useUserStore } from '@/store'`, store-bridge 补 useAppStore
+  //         应该合并到现有 import, 不新加一行
+  //         关键: 必须有 store.* 调用触发 store-bridge 收集新 import
+  const input2 = `import { useUserStore } from '@/store';
+const roles = useUserStore().roles;
+const perm = store.getters.permission_routes;
+const device = store.state.app.device;`
+
+  const file2 = makeFile('/utils/auth.js', input2, 'js')
+  runTransform(file2)
+
+  // 期望: 合并到一行 import, 不是两行
+  const lines = file2.source.split('\n').filter(l => l.includes("from '@/store'"))
+  if (lines.length === 1) {
+    pass++; console.log(`  ✓ iter-109: 已有 @/store import 时合并为 1 行`)
+  } else {
+    fail++; console.log(`  ✗ iter-109: 合并失败, got ${lines.length} lines: ${lines.join(' || ')}`)
+  }
+  if (file2.source.includes('useAppStore')) {
+    pass++; console.log(`  ✓ iter-109: 合并后包含 useAppStore`)
+  } else {
+    fail++; console.log(`  ✗ iter-109: 合并后缺失 useAppStore`)
+  }
+}
+
 console.log(`\npass ${pass}\nfail ${fail}`)
 if (fail > 0) {
   console.log('\nFailures:')

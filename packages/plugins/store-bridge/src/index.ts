@@ -476,36 +476,58 @@ const plugin: TransformPlugin = {
 
     // ------- 7. 更新 import: 把 storeImportsNeeded 加到 import 列表 -------
     if (storeImportsNeeded.size > 0) {
-      // 检查是否已有 `import { useXxxStore, useYyyStore } from '@/store'` 或类似
-      const storeImportRe = /import\s*\{([^}]*)\}\s*from\s*['"]@\/store['"]/
-      const newImports = Array.from(storeImportsNeeded).sort()
-      if (storeImportRe.test(processTarget)) {
-        // 已存在 store import, 把缺的加进去
-        processTarget = processTarget.replace(
-          storeImportRe,
-          (_m, existing: string) => {
-            const existingNames = new Set(
-              existing.split(',').map((s) => s.trim()).filter(Boolean),
-            )
-            const toAdd = newImports.filter((n) => !existingNames.has(n))
-            const allNames = Array.from(new Set([...existingNames, ...toAdd])).sort()
-            return `import { ${allNames.join(', ')} } from '@/store'`
-          },
-        )
-      } else {
-        // 没有 store import, 加一行
-        // 插在第一个 import 后面
-        const importLine = `import { ${newImports.join(', ')} } from '@/store'`
-        const firstImportMatch = processTarget.match(/^[ \t]*import\b[^\n]+/m)
-        if (firstImportMatch && firstImportMatch.index !== undefined) {
-          const insertPos = firstImportMatch.index + firstImportMatch[0].length
-          processTarget = processTarget.substring(0, insertPos) + '\n' + importLine + processTarget.substring(insertPos)
-        } else {
-          // 没找到任何 import, 加到顶部
-          processTarget = importLine + '\n' + processTarget
+      // iter-109: dedup 检查 — 扫描所有 import, 只要 import 名字是 useXxxStore 就算
+      //   (无论 path 是 @/store, @/store/modules/xxx, ./modules/app, ../store 等)
+      //   之前只检查 @/store 路径, 漏了 './modules/app' 这种相对路径, 导致 codegen self-check
+      //   报 "Identifier 'useAppStore' has already been declared" (master store/getters.js 实测)
+      const allNamedImportRe = /import\s*\{([^}]*)\}\s*from\s*['"][^'"]+['"]/g
+      const existingStoreNames = new Set<string>()
+      let m: RegExpExecArray | null
+      while ((m = allNamedImportRe.exec(processTarget)) !== null) {
+        for (const name of m[1].split(',').map((s) => s.trim()).filter(Boolean)) {
+          if (/^use[A-Z]\w*Store$/.test(name)) existingStoreNames.add(name)
         }
       }
-      changed = true
+      // 过滤掉已存在的 (避免重复声明)
+      const newImports = Array.from(storeImportsNeeded)
+        .filter((n) => !existingStoreNames.has(n))
+        .sort()
+
+      if (newImports.length === 0) {
+        // 所有 store 都已经 import 过了, 不需要再加
+        // 仍然 mark changed (因为 processTarget 内的 store.* 调用已替换)
+        changed = true
+      } else {
+        // 检查是否已有 `import { useXxxStore, useYyyStore } from '@/store'` (主入口)
+        const mainStoreImportRe = /import\s*\{([^}]*)\}\s*from\s*['"]@\/store['"]/
+        if (mainStoreImportRe.test(processTarget)) {
+          // 已存在 @/store import, 把缺的加进去
+          processTarget = processTarget.replace(
+            mainStoreImportRe,
+            (_m, existing: string) => {
+              const existingNames = new Set(
+                existing.split(',').map((s) => s.trim()).filter(Boolean),
+              )
+              const toAdd = newImports.filter((n) => !existingNames.has(n))
+              const allNames = Array.from(new Set([...existingNames, ...toAdd])).sort()
+              return `import { ${allNames.join(', ')} } from '@/store'`
+            },
+          )
+        } else {
+          // 没有 store import, 加一行
+          // 插在第一个 import 后面
+          const importLine = `import { ${newImports.join(', ')} } from '@/store'`
+          const firstImportMatch = processTarget.match(/^[ \t]*import\b[^\n]+/m)
+          if (firstImportMatch && firstImportMatch.index !== undefined) {
+            const insertPos = firstImportMatch.index + firstImportMatch[0].length
+            processTarget = processTarget.substring(0, insertPos) + '\n' + importLine + processTarget.substring(insertPos)
+          } else {
+            // 没找到任何 import, 加到顶部
+            processTarget = importLine + '\n' + processTarget
+          }
+        }
+        changed = true
+      }
     }
 
     if (processTarget !== originalProcessTarget) {
