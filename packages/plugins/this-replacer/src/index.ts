@@ -115,10 +115,69 @@ function findImportAliasFor(
 }
 
 /**
+ * iter-051: P0/P1 review 类 (Vue2 移除 / 改了语义的 API)。
+ *
+ * 这些不自动改 (改错风险高),只标 review 告诉用户怎么手动改。
+ *
+ *   this.$parent.X     →  inject('X') / 父组件 expose() + ref
+ *   this.$children      →  改用 template ref
+ *   this.$root          →  getCurrentInstance().appContext.app
+ *   this.$vnode         →  vnode 替换为 h() 参数 / 不再需要
+ *   this.$isServer      →  import.meta.env.SSR
+ *   this.$isDestroyed   →  isUnmounted() (vue 3 移除,改用 composable)
+ *   this.$options.X     →  移到 <script setup> 顶层 (setup() 里直接 const)
+ *   this.$bus.X         →  mitt/tiny-emitter (vue3 移除事件总线) / 已 review by vue3-template ($on/$off)
+ *
+ * 注意: this.$emit / $refs / $nextTick / $forceUpdate / $set / $delete 由 composition 处理。
+ *        this.$store / $route / $router 由 store-bridge / vue-router-v4 处理。
+ *        this.$listeners / $scopedSlots / $on / $off / $once 由 vue3-template 处理。
+ *        this.$message / $notify / $msgbox / $alert / $confirm / $loading 由 elementui 处理。
+ */
+const REVIEW_API: Record<string, string> = {
+  '$parent':     'inject() 替代 (父组件 provide 字段); 或 ref + expose 父调子属性',
+  '$children':   'Vue3 移除; 改用 template ref',
+  '$root':       'getCurrentInstance().appContext.app 替代 (罕见使用)',
+  '$vnode':      'Vue3 已移除; 重构为 composable 或 h() 渲染函数',
+  '$isServer':   'import.meta.env.SSR 替代 (Vite) 或 typeof window === "undefined"',
+  '$isDestroyed':'已移除; 改用 isMounted() composable (Vue 3.2+ 有 isUnmounted)',
+  '$options':    'Vue3 移除; 把 fields 提到 <script setup> 顶层 (data() → ref, computed → computed())',
+  '$bus':        'Vue3 移除事件总线; 用 mitt / tiny-emitter 替代; 或 provide/inject',
+}
+
+function reviewRemovedApis(file: any, utils: any): void {
+  const source: string = file.source
+  if (!source) return
+  // 简单 regex: this.$parent / this.$parent.X / this.$children[0] / 等
+  // 不需要精确 AST 解析 — 我们只标 review,不改代码
+  const byKey = new Map<string, number>()
+  for (const key of Object.keys(REVIEW_API)) {
+    // 匹配 this.$key 或 this.$key.(identifier / [..] 链)
+    // 单词边界 + 不接字母数字 (避免 this.$parentId 等)
+    const re = new RegExp(String.raw`\bthis\.${key.replace(/\$/g, '\\$')}(?![A-Za-z0-9_])`, 'g')
+    const matches = source.match(re)
+    if (matches && matches.length > 0) {
+      byKey.set(key, matches.length)
+    }
+  }
+  for (const [key, count] of byKey) {
+    utils.manualReview(
+      `this.${key} 出现 ${count} 次 — ${REVIEW_API[key]} (Vue 2 → Vue 3 迁移)`,
+    )
+  }
+}
+
+/**
  * 主 transform:扫描 this.$X 出现位置,根据 import 情况做替换或标 review。
+ *
+ * iter-051 增量:
+ *   - P0: reviewRemovedApis() — 标 review this.$parent / $children / $root / $vnode / $isServer / $isDestroyed / $options / $bus
+ *   - P1: applyThisReplacer() — 原有白名单 + 自动替换 + 标 review
  */
 function applyThisReplacer(file: any, utils: any): void {
   if (!file.source) return
+
+  // Pass 0: 标 review Vue 3 已移除 / 改语义的 API (this.$parent 等)
+  reviewRemovedApis(file, utils)
 
   const source: string = file.source
   // 1) 收集所有 this.$X 出现的位置 (X 在白名单)

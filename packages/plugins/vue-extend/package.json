@@ -1,0 +1,18 @@
+{
+  "name": "@vue-migrate/plugin-vue-extend",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "iter-051: Migrate non-standard Vue 2 dynamic-mount patterns: (1) `new Xxx().$mount(div)` (programmatic component instantiation, e.g. progressBar/detailPanel/dialog overlays) → review + best-effort createApp().mount(); (2) self-recursive function detection (e.g. setCurrentView) → review for stack-overflow risk and Vue 3 refactor hints.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/parser": "^7.25.0",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

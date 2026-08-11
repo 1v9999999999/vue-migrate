@@ -33,6 +33,7 @@ import '@vue-migrate/plugin-view-fix'  // iter-049a: 修 BUG-009/010/011/012/013
 import '@vue-migrate/plugin-vite-scaffold'
 import '@vue-migrate/plugin-resource-copier'
 import '@vue-migrate/plugin-this-replacer'
+import '@vue-migrate/plugin-vue-extend'  // iter-051 P1: new X().$mount() + setCurrentView 递归 review
 
 const program = new Command()
 

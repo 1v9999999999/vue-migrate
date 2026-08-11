@@ -4,12 +4,13 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "description": "Detect Vue2 prototype-injected properties (this.$http / this.$axios / this.$fetch / this.$api / this.$util / etc.) and either auto-rewrite to a discovered import or mark for manual review.",
+  "description": "iter-051: Scan Vue.prototype.$X = val mappings from entry/utils files, then in component files replace this.$X with proxy?.$X (strategy A: getCurrentInstance) and emit manual review for this.$parent / $children / $root / $bus.",
   "dependencies": {
     "@vue-migrate/core": "workspace:*",
+    "@babel/parser": "^7.25.0",
     "@babel/traverse": "^7.25.0",
     "@babel/types": "^7.25.0",
-    "@babel/parser": "^7.25.0"
+    "@babel/generator": "^7.25.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

@@ -246,6 +246,131 @@ console.log('\n[findImportAliasFor]')
   )
 }
 
+// ============ 11) this.$parent 鈫?reviewRemovedApis ============
+console.log('\n[this.$parent review]')
+{
+  const file = makeFile(
+    `<script setup>
+import { inject } from 'vue'
+const f = (event) => {
+  if (this.$parent.$options.componentName === 'ElFormItem') {
+    this.$parent.$emit('el.form.change', event)
+  }
+}
+const tagList = this.$parent.$refs.tag
+</script>`,
+  )
+  _testable_applyThisReplacer(file, makeUtils(file))
+  // $parent 出现 3 次, $emit 不在本 plugin 范围 (composition 处理)
+  assert(
+    'parent review triggered',
+    file.reviewItems.some((r: string) => r.includes('this.$parent')),
+    JSON.stringify(file.reviewItems),
+  )
+}
+
+// ============ 12) this.$children 鈫?review ============
+console.log('\n[this.$children review]')
+{
+  const file = makeFile(
+    `export default {
+  mounted() {
+    this.$children.forEach(c => c.refresh())
+  }
+}`,
+  )
+  _testable_applyThisReplacer(file, makeUtils(file))
+  assert(
+    'children review triggered',
+    file.reviewItems.some((r: string) => r.includes('this.$children')),
+    JSON.stringify(file.reviewItems),
+  )
+}
+
+// ============ 13) this.$root / $vnode / $isServer 合并 review ============
+console.log('\n[this.$root / $vnode / $isServer reviews]')
+{
+  const file = makeFile(
+    `export default {
+  beforeRouteEnter(to, from, next) {
+    if (this.$isServer) return
+    const root = this.$root.$store
+    this.$vnode.componentOptions.Ctor.options
+  }
+}`,
+  )
+  _testable_applyThisReplacer(file, makeUtils(file))
+  assert(
+    'isServer review',
+    file.reviewItems.some((r: string) => r.includes('this.$isServer')),
+    JSON.stringify(file.reviewItems),
+  )
+  assert(
+    'root review',
+    file.reviewItems.some((r: string) => r.includes('this.$root')),
+    JSON.stringify(file.reviewItems),
+  )
+  assert(
+    'vnode review',
+    file.reviewItems.some((r: string) => r.includes('this.$vnode')),
+    JSON.stringify(file.reviewItems),
+  )
+}
+
+// ============ 14) this.$options.componentName / $isDestroyed / $bus review ============
+console.log('\n[this.$options / $isDestroyed / $bus reviews]')
+{
+  const file = makeFile(
+    `export default {
+  methods: {
+    isAlive() { return !this.$isDestroyed },
+    sendMsg() { this.$bus.$emit('foo', 1) },
+    getName() { return this.$options.name }
+  }
+}`,
+  )
+  _testable_applyThisReplacer(file, makeUtils(file))
+  assert(
+    'isDestroyed review',
+    file.reviewItems.some((r: string) => r.includes('this.$isDestroyed')),
+    JSON.stringify(file.reviewItems),
+  )
+  assert(
+    'options review',
+    file.reviewItems.some((r: string) => r.includes('this.$options')),
+    JSON.stringify(file.reviewItems),
+  )
+  // $bus 也在白名单里,所以会有两个 review (一个 from REVIEW_API 一个 from 白名单)
+  // 这两个 review 不冲突 - 我们只测至少有一个 $bus review
+  assert(
+    'bus review (any source)',
+    file.reviewItems.some((r: string) => r.includes('this.$bus')),
+    JSON.stringify(file.reviewItems),
+  )
+}
+
+// ============ 15) 边界: this.$parentId 不应被误判为 $parent ============
+console.log('\n[this.$parentId false-positive check]')
+{
+  const file = makeFile(
+    `export default {
+  data() { return { parentId: 1 } },
+  methods: {
+    go() { return this.parentId }
+  }
+}`,
+  )
+  _testable_applyThisReplacer(file, makeUtils(file))
+  // 这里的 this.parentId 不是 this.$parent - 不应触发 review
+  assert(
+    'no $parent review for this.parentId',
+    !file.reviewItems.some((r: string) => r.includes('this.$parent')),
+    JSON.stringify(file.reviewItems),
+  )
+}
+
+// ============ 鎬荤粨 ============
+
 // ============ 鎬荤粨 ============
 console.log(`\ntests ${pass + fail} pass ${pass} fail ${fail}`)
 if (fail > 0) {

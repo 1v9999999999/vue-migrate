@@ -24,6 +24,7 @@ const packages = [
   { name: 'vite-scaffold', path: 'packages/plugins/vite-scaffold/tsconfig.json' },
   { name: 'resource-copier', path: 'packages/plugins/resource-copier/tsconfig.json' },
   { name: 'this-replacer', path: 'packages/plugins/this-replacer/tsconfig.json' },
+  { name: 'vue-extend', path: 'packages/plugins/vue-extend/tsconfig.json' },
 ]
 
 let totalErrors = 0
