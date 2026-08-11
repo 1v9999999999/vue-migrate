@@ -1,0 +1,84 @@
+// =====================================================================
+// module-styles.module.scss - CSS Modules 独立文件
+// 在 Vue 组件里用 :import('~/styles/module-styles.module.scss') 引用
+// 或者直接 import 整个对象: import styles from '@/styles/module-styles.module.scss'
+// =====================================================================
+
+.card {
+  background: #ffffff;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+    transform: translateY(-2px);
+  }
+}
+
+.cardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.cardBody {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.badgePrimary {
+  composes: badge;
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.badgeSuccess {
+  composes: badge;
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.badgeWarning {
+  composes: badge;
+  background: #fffbe6;
+  color: #faad14;
+}
+
+.badgeDanger {
+  composes: badge;
+  background: #fff1f0;
+  color: #ff4d4f;
+}
+
+// :export 给 JS
+:export {
+  cardPadding: 16px;
+  cardRadius: 8px;
+  primaryColor: #1890ff;
+}

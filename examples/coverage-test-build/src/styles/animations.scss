@@ -1,0 +1,107 @@
+// =====================================================================
+// animations.scss - 全局动画
+// =====================================================================
+
+// 淡入
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+// 淡出
+@keyframes fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+// 滑入 (4 方向)
+@keyframes slide-in-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-down {
+  from { transform: translateY(-20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+// 缩放
+@keyframes zoom-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+// 弹跳
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+// 旋转
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+// 脉冲
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+// 抖动 (错误提示)
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+// 心跳
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  20%, 60% { transform: scale(1.1); }
+  40%, 80% { transform: scale(1); }
+}
+
+// 工具类
+.anim-fade-in { animation: fade-in 0.3s ease-in-out; }
+.anim-fade-out { animation: fade-out 0.3s ease-in-out; }
+.anim-slide-up { animation: slide-in-up 0.3s ease-out; }
+.anim-slide-down { animation: slide-in-down 0.3s ease-out; }
+.anim-slide-left { animation: slide-in-left 0.3s ease-out; }
+.anim-slide-right { animation: slide-in-right 0.3s ease-out; }
+.anim-zoom-in { animation: zoom-in 0.3s ease-out; }
+.anim-bounce { animation: bounce 1s ease-in-out infinite; }
+.anim-spin { animation: spin 1s linear infinite; }
+.anim-pulse { animation: pulse 2s ease-in-out infinite; }
+.anim-shake { animation: shake 0.5s ease-in-out; }
+.anim-heartbeat { animation: heartbeat 1.5s ease-in-out infinite; }
+
+// 过渡 (Vue transition 用)
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter, .fade-leave-to {
+  opacity: 0;
+}
+
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+.slide-fade-leave-active {
+  transition: all 0.3s cubic-bezier(1, 0.5, 0.8, 1);
+}
+.slide-fade-enter-from, .slide-fade-leave-to {
+  transform: translateX(20px);
+  opacity: 0;
+}

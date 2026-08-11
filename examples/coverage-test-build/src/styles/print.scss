@@ -1,0 +1,144 @@
+// =====================================================================
+// print.scss - 打印样式
+// =====================================================================
+
+@media print {
+  // 全局
+  * {
+    background: transparent !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  body {
+    font-size: 12pt;
+    line-height: 1.4;
+    margin: 0;
+    padding: 0;
+  }
+
+  // 链接 (URL 显示)
+  a, a:visited {
+    text-decoration: underline;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #555;
+  }
+
+  // 内部链接不加
+  a[href^="#"]::after,
+  a[href^="javascript:"]::after {
+    content: "";
+  }
+
+  // 标题
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    font-weight: bold;
+  }
+
+  h1 { font-size: 18pt; }
+  h2 { font-size: 16pt; }
+  h3 { font-size: 14pt; }
+  h4, h5, h6 { font-size: 12pt; }
+
+  // 段落
+  p {
+    margin: 0 0 0.5em 0;
+    orphans: 3;
+    widows: 3;
+  }
+
+  // 表格
+  table {
+    border-collapse: collapse;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr, th, td {
+    border: 1px solid #000;
+    padding: 4px 8px;
+  }
+
+  th {
+    background: #ccc !important;
+    text-align: left;
+  }
+
+  // 列表
+  ul, ol {
+    margin: 0 0 0.5em 1.5em;
+  }
+
+  // 图像
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  // 隐藏不打印
+  .no-print,
+  nav, header, footer, aside,
+  .toolbar, .action-bar, .pagination,
+  .modal, .drawer, .dropdown-menu,
+  .btn, button, .el-button, .ant-btn,
+  .el-form-item__error, .ant-form-item-explain-error,
+  form[role="search"] {
+    display: none !important;
+  }
+
+  // 强制显示 (即使父级 no-print)
+  .print-only,
+  .print-block {
+    display: block !important;
+  }
+
+  .print-inline {
+    display: inline !important;
+  }
+
+  .print-flex {
+    display: flex !important;
+  }
+
+  // 分页
+  .page-break-before { page-break-before: always; }
+  .page-break-after { page-break-after: always; }
+  .page-break-avoid { page-break-inside: avoid; }
+
+  // 布局
+  .container {
+    max-width: 100%;
+    padding: 0;
+    margin: 0;
+  }
+
+  // 代码
+  code, pre {
+    font-family: "Courier New", monospace;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+
+  pre {
+    border: 1px solid #999;
+    padding: 0.5em;
+    background: #f5f5f5 !important;
+  }
+
+  // 浮动清理
+  .clearfix::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+}

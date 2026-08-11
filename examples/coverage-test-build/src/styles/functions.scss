@@ -1,0 +1,84 @@
+// =====================================================================
+// functions.scss - SCSS @function 工具
+// =====================================================================
+
+// 颜色饱和度调整
+@function saturate($color, $amount) {
+  @return hsl(hue($color), saturation($color) + $amount, lightness($color));
+}
+
+// 颜色亮度调整
+@function lighten-color($color, $amount) {
+  @return hsl(hue($color), saturation($color), lightness($color) + $amount);
+}
+
+@function darken-color($color, $amount) {
+  @return hsl(hue($color), saturation($color), lightness($color) - $amount);
+}
+
+// 颜色透明度
+@function alpha-color($color, $alpha) {
+  @return rgba($color, $alpha);
+}
+
+// 计算器
+@function calc-percent($value, $total) {
+  @return percentage($value / $total);
+}
+
+// 字符串长度
+@function str-length($str) {
+  @return str-length($str);
+}
+
+// 字符串替换 (Sass 1.x 才有)
+@function str-replace($string, $search, $replace: '') {
+  $index: str-index($string, $search);
+  @if $index {
+    @return str-slice($string, 1, $index - 1) + $replace +
+      str-replace(str-slice($string, $index + str-length($search)), $search, $replace);
+  }
+  @return $string;
+}
+
+// 单位转换
+@function px-to-vw($px, $viewport: 1920) {
+  @return $px / $viewport * 100vw;
+}
+
+@function px-to-vh($px, $viewport: 1080) {
+  @return $px / $viewport * 100vh;
+}
+
+// 是否深色
+@function is-dark($color) {
+  $r: red($color);
+  $g: green($color);
+  $b: blue($color);
+  $yiq: ($r * 299 + $g * 587 + $b * 114) / 1000;
+  @return $yiq < 128;
+}
+
+// 选文字颜色 (在给定背景上)
+@function contrast-color($bg) {
+  @if is-dark($bg) {
+    @return #ffffff;
+  } @else {
+    @return #000000;
+  }
+}
+
+// z-index 拼接
+@function z($layer) {
+  @return map-get($z-layers, $layer);
+}
+
+$z-layers: (
+  'base': 1,
+  'dropdown': 1000,
+  'sticky': 1100,
+  'fixed': 1200,
+  'modal': 1300,
+  'popover': 1400,
+  'tooltip': 1500
+);

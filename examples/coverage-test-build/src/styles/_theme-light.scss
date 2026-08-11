@@ -1,0 +1,60 @@
+// =====================================================================
+// _theme-light.scss - 浅色主题 (CSS variable + SCSS variable 混合)
+// =====================================================================
+
+:root,
+[data-theme='light'] {
+  // 颜色
+  --color-primary: #1890ff;
+  --color-primary-hover: #40a9ff;
+  --color-primary-active: #096dd9;
+  --color-primary-bg: #e6f7ff;
+
+  --color-success: #52c41a;
+  --color-warning: #faad14;
+  --color-danger:  #ff4d4f;
+  --color-info:    #909399;
+
+  // 文字
+  --text-primary:   rgba(0, 0, 0, 0.85);
+  --text-secondary: rgba(0, 0, 0, 0.65);
+  --text-tertiary:  rgba(0, 0, 0, 0.45);
+  --text-disabled:  rgba(0, 0, 0, 0.25);
+  --text-inverse:   #ffffff;
+
+  // 背景
+  --bg-base:    #ffffff;
+  --bg-light:   #fafafa;
+  --bg-lighter: #f5f5f5;
+  --bg-dark:    #1f1f1f;
+  --bg-mask:    rgba(0, 0, 0, 0.45);
+
+  // 边框
+  --border-base:    #d9d9d9;
+  --border-light:   #f0f0f0;
+  --border-lighter: #f5f5f5;
+
+  // 阴影
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-base: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  // 圆角
+  --radius-sm: 2px;
+  --radius-base: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+}
+
+// 浅色主题专用类
+.theme-light {
+  background: var(--bg-base);
+  color: var(--text-primary);
+
+  .card {
+    background: var(--bg-base);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-sm);
+  }
+}
