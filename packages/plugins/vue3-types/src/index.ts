@@ -75,6 +75,16 @@ const plugin: TransformPlugin = {
       `[vue3-types] processed ${file.relativePath} (${ts ? 'TS' : 'JS'}); ` +
         `typeCache size: ${project.typeCache.get(file.path)?.size || 0}`,
     )
+
+    // iter-110: sync AST → file.source (避免 useRawSource 模式下 JSDoc 注释丢失)
+    //   4 个 sub-rule 全用 attachJSDoc 改 node.leadingComments, 这些 comments 不会
+    //   自动写回 file.source, 如果后续 composition (priority 0) 设 useRawSource=true,
+    //   codegen 会忽略 scriptAst 直接输出 file.source, 所有 JSDoc 注释丢失.
+    if (file.kind === 'vue' && file.scriptAst && file.changed) {
+      try { ctx.utils.syncScriptAstToSource() } catch (e: any) {
+        ctx.log(`[vue3-types] syncScriptAstToSource failed: ${e.message}`)
+      }
+    }
   },
 }
 

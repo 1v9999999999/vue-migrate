@@ -241,6 +241,15 @@ if (propName === 'compile') { utils.manualReview(
       if (needsCreateApp) toAdd.push('createApp')
       ensureVueImport(file, toAdd)
     }
+
+    // iter-110: sync AST → file.source (避免 useRawSource 模式下 AST 改动丢失)
+    //   vue2-compat 改 beforeDestroy/destroyed hook, ensureVueImport 加 createApp import 等,
+    //   这些都是 AST 改动. 后续 store-bridge / vue-router-v4 设 useRawSource=true 时会丢.
+    if (file.scriptAst && file.changed) {
+      try { (ctx as any).utils.syncScriptAstToSource() } catch (e: any) {
+        ctx.log(`[vue2-compat] syncScriptAstToSource failed: ${e.message}`)
+      }
+    }
   },
 }
 

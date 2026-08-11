@@ -487,7 +487,18 @@ for (const expr of dynamicCommits) {
     })
 
     for (const r of reviewItems) ctx.utils.manualReview(r)
-    if (changed) ctx.utils.markChanged('vuex 3 → pinia')
+    if (changed) {
+      ctx.utils.markChanged('vuex 3 → pinia')
+
+      // iter-110: sync AST → file.source (避免 useRawSource 模式下 AST 改动丢失)
+      //   inline `new Vuex.Store({...})` 路径 (line 397-466) 改 AST: 替换为 defineStore,
+      //   删 const state/mutations/actions/getters, 改 import, 删 Vue.use(Vuex). 这些
+      //   都是 AST 改动. 若该文件后续被 composition / store-bridge / vue-router-v4 设
+      //   useRawSource=true, 所有改动丢失.
+      try { ctx.utils.syncScriptAstToSource() } catch (e: any) {
+        ctx.log(`[vuex-pinia] syncScriptAstToSource failed: ${e.message}`)
+      }
+    }
   },
 }
 

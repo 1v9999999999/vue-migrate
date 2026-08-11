@@ -72,6 +72,17 @@ const plugin: TransformPlugin = {
       applyKeepAliveIncludeArray(ctx)
     }
 
+    // iter-110: sync AST → file.source (避免 useRawSource 模式下 AST 改动丢失)
+    //   3 个 script rule (applyDirectiveHookRename / applyDirectiveVnodeBindingRewrite /
+    //   applyDirectiveInstallRewrite) 改 AST: directive hook bind→beforeMount, vnode.context
+    //   →binding.instance, install(Vue)→install(app). 这些都是 AST 改动. 若该文件后续被
+    //   store-bridge / vue-router-v4 / composition 设 useRawSource=true, 改动丢失.
+    if (file.scriptAst && file.changed) {
+      try { utils.syncScriptAstToSource() } catch (e: any) {
+        ctx.log(`[vue3-directives] syncScriptAstToSource failed: ${e.message}`)
+      }
+    }
+
     // F6: directive auto-register moved to separate plugin (directive-auto-register-plugin.ts)
     // priority 5 to run after vue3-entry (9)
   },

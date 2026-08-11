@@ -89,6 +89,16 @@ const plugin: TransformPlugin = {
     } finally {
       removeVueDefaultImportIfUnused(file, (msg) => utils.markChanged(msg || ''))
     }
+
+    // iter-110: sync AST → file.source (避免 useRawSource 模式下 AST 改动丢失)
+    //   vue3-entry 改 Vue.observable→reactive (line 102-114 对所有文件跑), entry chain
+    //   重写 (new Vue + .$mount → createApp + .mount), 改 ensureVueImport 等. 这些都是
+    //   AST 改动. 后续 store-bridge / vue-router-v4 设 useRawSource=true 时会丢.
+    if (file.scriptAst && file.changed) {
+      try { utils.syncScriptAstToSource() } catch (e: any) {
+        ctx.log(`[vue3-entry] syncScriptAstToSource failed: ${e.message}`)
+      }
+    }
   },
 }
 
