@@ -23,6 +23,7 @@ const packages = [
   { name: 'vite-compat', path: 'packages/plugins/vite-compat/tsconfig.json' },
   { name: 'vite-scaffold', path: 'packages/plugins/vite-scaffold/tsconfig.json' },
   { name: 'resource-copier', path: 'packages/plugins/resource-copier/tsconfig.json' },
+  { name: 'this-replacer', path: 'packages/plugins/this-replacer/tsconfig.json' },
 ]
 
 let totalErrors = 0

@@ -30,6 +30,7 @@ const testFiles = [
   'packages/plugins/store-bridge/src/__tests__/test-store-bridge.ts',
   'packages/plugins/vite-scaffold/src/__tests__/test-vite-scaffold.ts',
   'packages/plugins/resource-copier/src/__tests__/test-resource-copier.ts',
+  'packages/plugins/this-replacer/src/__tests__/test-this-replacer.ts',
 ]
 
 let totalPass = 0
