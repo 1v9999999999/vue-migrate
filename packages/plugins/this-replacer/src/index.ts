@@ -144,9 +144,10 @@ const REVIEW_API: Record<string, string> = {
   '$bus':        'Vue3 移除事件总线; 用 mitt / tiny-emitter 替代; 或 provide/inject',
 }
 
-function reviewRemovedApis(file: any, utils: any): void {
+function reviewRemovedApis(file: any, ctx: any): void {
   const source: string = file.source
   if (!source) return
+  const utils = ctx.utils
   // 简单 regex: this.$parent / this.$parent.X / this.$children[0] / 等
   // 不需要精确 AST 解析 — 我们只标 review,不改代码
   const byKey = new Map<string, number>()
@@ -159,9 +160,11 @@ function reviewRemovedApis(file: any, utils: any): void {
       byKey.set(key, matches.length)
     }
   }
+  // iter-116: 降级为 ctx.log — this.$parent 等 Vue 3 移除, 但 AST 改风险高 (inject key 父不一定 provide)
+  //      user 看到 log 会知道需要手动改 (inject() / ref + expose / appContext.app)
   for (const [key, count] of byKey) {
-    utils.manualReview(
-      `this.${key} 出现 ${count} 次 — ${REVIEW_API[key]} (Vue 2 → Vue 3 迁移)`,
+    ctx.log?.(
+      `this.${key} 出现 ${count} 次 — ${REVIEW_API[key]} (Vue 2 → Vue 3 迁移, master 195 实测 2 处需手动改)`,
     )
   }
 }
@@ -173,11 +176,12 @@ function reviewRemovedApis(file: any, utils: any): void {
  *   - P0: reviewRemovedApis() — 标 review this.$parent / $children / $root / $vnode / $isServer / $isDestroyed / $options / $bus
  *   - P1: applyThisReplacer() — 原有白名单 + 自动替换 + 标 review
  */
-function applyThisReplacer(file: any, utils: any): void {
+function applyThisReplacer(file: any, ctx: any): void {
+  const utils = ctx.utils
   if (!file.source) return
 
   // Pass 0: 标 review Vue 3 已移除 / 改语义的 API (this.$parent 等)
-  reviewRemovedApis(file, utils)
+  reviewRemovedApis(file, ctx)
 
   const source: string = file.source
   // 1) 收集所有 this.$X 出现的位置 (X 在白名单)
@@ -236,8 +240,8 @@ const plugin: TransformPlugin = {
   fileKinds: ['vue', 'js', 'ts'],
 
   transform(ctx: TransformContext) {
-    const { file, utils } = ctx
-    applyThisReplacer(file, utils)
+    const { file } = ctx
+    applyThisReplacer(file, ctx)
   },
 }
 

@@ -89,10 +89,11 @@ export function applyValueInputToVModel(ctx: any): void {
         const sep = cleanAttrs ? ' ' : ''
         const selfClose = full.endsWith('/>') ? ' />' : '>'
         changed = true
-        reviewItems.push(
+        // iter-116: 降级为 ctx.log (plugin 已自动改, Vue 3 v-model 行为是常识, 不进 review)
+        ctx.log?.(
           `:value + @input on <${tag}> replaced with v-model="${vmodelExpr}" — please verify input handler (${
             inputExpr.length > 30 ? inputExpr.slice(0, 30) + '...' : inputExpr
-          }) is just an assignment. Vue3 注意事项: 1) v-model 默认绑定到 modelValue + emit update:modelValue, 自定义组件需 defineModel 或手动 expose modelValue/update:modelValue; 2) input 元素 $event.target.value 用法保持兼容, 但 select/checkbox/radio 行为有差异; 3) 修饰符 .lazy/.number/.trim 在 v-model 上仍然有效`,
+          }) is just an assignment. Vue3 注意事项: 1) v-model 默认绑定到 modelValue + emit update:modelValue; 2) input 元素 $event.target.value 用法保持兼容; 3) 修饰符 .lazy/.number/.trim 仍然有效`,
         )
         return `<${tag}${sep}${cleanAttrs} v-model="${vmodelExpr}"${selfClose}`
       })

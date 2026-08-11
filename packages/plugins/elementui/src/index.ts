@@ -86,8 +86,11 @@ const plugin: TransformPlugin = {
           const src = node.source.value
           // 匹配 element-variables / element-variable 之类命名（用户可能多个)
           if (/element[-_]variables?/i.test(src)) {
-            ctx.utils.manualReview(
-              `[iter-044 B3] 检测到 '${src}' — Element UI SCSS 变量覆盖文件,Element Plus 走 CSS variables 这类文件大多不再需要。若该文件含项目自定义变量,请用 Element Plus 的 CSS 变量机制重新声明。`,
+            // iter-116: 降级为 ctx.log (Element UI SCSS 变量 → Element Plus CSS variables 是已知迁移, 不进 review)
+            //      Element Plus CSS variables: --el-color-primary, --el-color-success 等 (https://element-plus.org/en-US/guide/theming.html)
+            //      实际改法: 把 element-variables.scss 里的 $--color-primary: #xxx → :root { --el-color-primary: #xxx }
+            ctx.log?.(
+              `[elementui] ${ctx.file.relativePath} 引用了 '${src}' — Element UI SCSS 变量覆盖文件。Element Plus 走 CSS variables (--el-color-primary 等), 此类文件大多不再需要。若含项目自定义变量, 改成 :root { --el-color-primary: #xxx } 形式。`,
             )
           }
         },

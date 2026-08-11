@@ -146,7 +146,8 @@ function applyStoreContextReview(file: any, utils: any): void {
   })
 }
 
-function applyEchartsReview(file: any, utils: any): void {
+function applyEchartsReview(file: any, ctx: any): void {
+  const utils = ctx.utils
   // 只在 .vue / .ts / .js 的 import 语句里识别 `echarts`
   if (!file.scriptAst) return
   const ast = file.scriptAst
@@ -156,9 +157,10 @@ function applyEchartsReview(file: any, utils: any): void {
     ImportDeclaration(path: any) {
       const node = path.node
       if (node.source.value !== 'echarts') return
-      // 注意：版本检查需要 package.json 信息。简单做法是直接提示
-      utils.manualReview(
-        'echarts 包 import 未指定版本。Vue3 + Vite 项目建议使用 echarts@5+。echarts@4 的 CJS 入口在 Vite ESM 环境下会失败。',
+      // iter-116: 降级为 ctx.log (echarts 5+ 仍是 default import, import 路径不变; 只是 package.json 要 ^5)
+      //      AST 改风险: 不知道 user 实际用哪个 minor/major, 不应自动改 import path
+      ctx.log?.(
+        `[vite-compat] ${file.relativePath} 用了 import 'echarts' — 建议 package.json 升级到 echarts@^5+ (echarts@4 CJS 在 Vite ESM 失败, echarts@5 ESM-friendly, import 路径不变). Vue 3 兼容性 OK.`,
       )
     },
     CallExpression(path: any) {
@@ -170,8 +172,8 @@ function applyEchartsReview(file: any, utils: any): void {
         t.isStringLiteral(node.arguments[0]) &&
         node.arguments[0].value === 'echarts'
       ) {
-        utils.manualReview(
-          "require('echarts') 是 CJS 形式，Vite 浏览器不直接支持。建议改 import echarts from 'echarts'（升 5+）",
+        ctx.log?.(
+          `[vite-compat] ${file.relativePath} 用了 require('echarts') — Vite 浏览器不直接支持 require. 建议改 import echarts from 'echarts' 并升 echarts@5+`,
         )
       }
     },
@@ -191,7 +193,7 @@ const plugin: TransformPlugin = {
     if (file.scriptAst) {
       applyNodeBuiltinReview(file, utils)
       applyStoreContextReview(file, utils)
-      applyEchartsReview(file, utils)
+      applyEchartsReview(file, ctx)
     }
 
     // package.json 单独处理

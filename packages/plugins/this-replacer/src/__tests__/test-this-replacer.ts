@@ -30,13 +30,20 @@ function makeFile(source: string, path = '/test.vue', useRawSource = false): any
 }
 
 function makeUtils(file: any) {
+  if (!file.logItems) file.logItems = []
   return {
-    markChanged: (msg?: string) => {
-      file.changed = true
-      if (msg) file.marks.push(msg)
+    // iter-116: applyThisReplacer 现在接受 (file, ctx) — 返回 ctx-like 形式
+    utils: {
+      markChanged: (msg?: string) => {
+        file.changed = true
+        if (msg) file.marks.push(msg)
+      },
+      manualReview: (msg: string) => {
+        file.reviewItems.push(msg)
+      },
     },
-    manualReview: (msg: string) => {
-      file.reviewItems.push(msg)
+    log: (msg: string) => {
+      file.logItems.push(msg)
     },
   }
 }
@@ -261,11 +268,11 @@ const tagList = this.$parent.$refs.tag
 </script>`,
   )
   _testable_applyThisReplacer(file, makeUtils(file))
-  // $parent 出现 3 次, $emit 不在本 plugin 范围 (composition 处理)
+  // iter-116: $parent review 降级为 ctx.log
   assert(
-    'parent review triggered',
-    file.reviewItems.some((r: string) => r.includes('this.$parent')),
-    JSON.stringify(file.reviewItems),
+    'parent log triggered',
+    file.logItems.some((r: string) => r.includes('this.$parent')),
+    JSON.stringify(file.logItems),
   )
 }
 
@@ -280,10 +287,11 @@ console.log('\n[this.$children review]')
 }`,
   )
   _testable_applyThisReplacer(file, makeUtils(file))
+  // iter-116: $children review 降级为 ctx.log
   assert(
-    'children review triggered',
-    file.reviewItems.some((r: string) => r.includes('this.$children')),
-    JSON.stringify(file.reviewItems),
+    'children log triggered',
+    file.logItems.some((r: string) => r.includes('this.$children')),
+    JSON.stringify(file.logItems),
   )
 }
 
@@ -300,20 +308,21 @@ console.log('\n[this.$root / $vnode / $isServer reviews]')
 }`,
   )
   _testable_applyThisReplacer(file, makeUtils(file))
+  // iter-116: review 全部降级为 ctx.log
   assert(
-    'isServer review',
-    file.reviewItems.some((r: string) => r.includes('this.$isServer')),
-    JSON.stringify(file.reviewItems),
+    'isServer log',
+    file.logItems.some((r: string) => r.includes('this.$isServer')),
+    JSON.stringify(file.logItems),
   )
   assert(
-    'root review',
-    file.reviewItems.some((r: string) => r.includes('this.$root')),
-    JSON.stringify(file.reviewItems),
+    'root log',
+    file.logItems.some((r: string) => r.includes('this.$root')),
+    JSON.stringify(file.logItems),
   )
   assert(
-    'vnode review',
-    file.reviewItems.some((r: string) => r.includes('this.$vnode')),
-    JSON.stringify(file.reviewItems),
+    'vnode log',
+    file.logItems.some((r: string) => r.includes('this.$vnode')),
+    JSON.stringify(file.logItems),
   )
 }
 
@@ -330,23 +339,22 @@ console.log('\n[this.$options / $isDestroyed / $bus reviews]')
 }`,
   )
   _testable_applyThisReplacer(file, makeUtils(file))
+  // iter-116: review 全部降级为 ctx.log
   assert(
-    'isDestroyed review',
-    file.reviewItems.some((r: string) => r.includes('this.$isDestroyed')),
-    JSON.stringify(file.reviewItems),
+    'isDestroyed log',
+    file.logItems.some((r: string) => r.includes('this.$isDestroyed')),
+    JSON.stringify(file.logItems),
   )
   assert(
-    'options review',
-    file.reviewItems.some((r: string) => r.includes('this.$options')),
-    JSON.stringify(file.reviewItems),
+    'options log',
+    file.logItems.some((r: string) => r.includes('this.$options')),
+    JSON.stringify(file.logItems),
   )
-  // $bus 也在白名单里,所以会有两个 review (一个 from REVIEW_API 一个 from 白名单)
-  // 这两个 review 不冲突 - 我们只测至少有一个 $bus review
-  assert(
-    'bus review (any source)',
-    file.reviewItems.some((r: string) => r.includes('this.$bus')),
-    JSON.stringify(file.reviewItems),
-  )
+  // $bus 也在白名单里, REVIEW_API 给的降级为 log; 白名单的仍 review (需要 import)
+  // 测至少有一个 $bus 相关 log 或 review
+  const hasBusReview = file.reviewItems.some((r: string) => r.includes('this.$bus'))
+  const hasBusLog = file.logItems.some((r: string) => r.includes('this.$bus'))
+  assert('bus review or log (any source)', hasBusReview || hasBusLog, JSON.stringify({ review: file.reviewItems, log: file.logItems }))
 }
 
 // ============ 15) 边界: this.$parentId 不应被误判为 $parent ============
