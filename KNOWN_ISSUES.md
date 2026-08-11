@@ -83,13 +83,14 @@
   - `this.selectedRows = rows` → `selectedRows.splice(0, selectedRows.length, ...rows)`
   - `this.city = newCity` → `city.splice(0, city.length, ...newCity)`
 
-### 6. ECharts 自由变量 `myChart` TODO 注释误导
+### ~~6. ECharts 自由变量 `myChart` TODO 注释误导~~ ✅ 已修 (iter-059, 0 残留)
 
 - **Type**: cosmetic
 - **Severity**: minor
 - **Files**: examples/222/components/headTop.vue
 - **现状**: 注释 `// TODO: type unknown` 但代码已经声明 `let myChart: any`，TODO 不准确
 - **修复计划**: 修注释模板
+- **iter-059 验证**: 4 个 chart 文件 (LineChart / PieChart / BarChart / RaddarChart) 全部用 `const chart = ref(null)` 或 `const chartEl = ref(null)` (template ref), 没有 `let myChart: any` 残留, 没有 TODO 注释. 关闭.
 
 ## 修复中
 
