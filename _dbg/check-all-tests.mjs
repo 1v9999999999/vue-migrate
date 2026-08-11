@@ -31,6 +31,7 @@ const testFiles = [
   'packages/plugins/vite-scaffold/src/__tests__/test-vite-scaffold.ts',
   'packages/plugins/resource-copier/src/__tests__/test-resource-copier.ts',
   'packages/plugins/this-replacer/src/__tests__/test-this-replacer.ts',
+  'packages/plugins/vue-router-v4/src/__tests__/test-wrapper-rename.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-new-x-mount.ts',
   'packages/plugins/composition/src/__tests__/test-recursive-method.mjs',
   'packages/plugins/composition/src/__tests__/test-parent-skip-comments.mjs',
@@ -46,8 +47,9 @@ for (const testFile of testFiles) {
     windowsHide: true,
   })
   const stdout = res.stdout || ''
-  const passMatch = stdout.match(/pass (\d+)/)
-  const failMatch = stdout.match(/fail (\d+)/)
+  // 支持 "pass N" 和 "N pass" 两种格式 (vue-router-v4 用 N pass)
+  const passMatch = stdout.match(/pass[ =]+(\d+)/) || stdout.match(/(\d+)[ ]*pass/)
+  const failMatch = stdout.match(/fail[ =]+(\d+)/) || stdout.match(/(\d+)[ ]*fail/)
   const testsMatch = stdout.match(/tests (\d+)/)
   const pass = passMatch ? parseInt(passMatch[1]) : 0
   const fail = failMatch ? parseInt(failMatch[1]) : 0
