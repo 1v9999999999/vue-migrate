@@ -40,15 +40,42 @@ export function syncScriptAstToSource(file: FileNode): void {
     compact: false,
   }).code
 
-  // loc.start.offset 是 <script> 标签末尾 (内容开始),
-  // loc.end.offset   是 </script> 标签开始
-  const absStart = loc.start.offset
-  const absEnd = loc.end.offset
+  // iter-117: loc.start.offset 可能 stale (前一个 plugin 改 source 后没 sync sfc loc).
+  //   重新从 file.source 字符串级定位 <script>...</script> 边界, 避免切坏标签.
+  //   例如 vue3-types 跑 syncScriptAstToSource 时, loc 指向的 absStart 在 <script setup> 中间,
+  //   二次 sync 会切掉 `>`. 用 lastIndexOf + indexOf 重定位是更安全的做法.
+  const sourceNow = file.source
+  // 找 <script...> 标签的 > 位置
+  //   (1) 用 loc.start.offset 之前找最近的 > (loc 假设的 script open 标签尾巴)
+  //   (2) 如果 (1) 失败, fallback 扫整个 source 找 <script...>
+  let scriptOpenEnd = sourceNow.lastIndexOf('>', loc.start.offset)
+  if (scriptOpenEnd < 0) {
+    // fallback: 全 source 找
+    const m = sourceNow.match(/<script\b[^>]*>/i)
+    if (!m || m.index === undefined) return
+    scriptOpenEnd = m.index + m[0].length
+  } else {
+    scriptOpenEnd = scriptOpenEnd + 1  // 包含 >
+  }
+  // 找 </script> 标签开始
+  let scriptCloseStart = sourceNow.indexOf('</script>', loc.end.offset - 1)
+  if (scriptCloseStart < 0) {
+    // fallback: 找 scriptOpenEnd 之后的 </script>
+    scriptCloseStart = sourceNow.indexOf('</script>', scriptOpenEnd)
+  }
+  if (scriptCloseStart < 0) return
+  const absEnd = scriptCloseStart  // </script> 开始
+  const absStart = scriptOpenEnd   // <script...> 结束 (含 >)
 
   file.source =
-    file.source.substring(0, absStart) +
+    sourceNow.substring(0, absStart) +
     newScriptBody +
-    file.source.substring(absEnd)
+    sourceNow.substring(absEnd)
+
+  // 同步 sfc script.content + loc
+  scriptBlock.content = newScriptBody
+  loc.start.offset = absStart
+  loc.end.offset = absStart + newScriptBody.length
 
   // 同步 sfc script.content + loc
   scriptBlock.content = newScriptBody

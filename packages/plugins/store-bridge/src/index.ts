@@ -119,6 +119,13 @@ const plugin: TransformPlugin = {
       processTarget = file.source
     }
 
+    // iter-117: 用 scanOnly 跳过注释 (// 单行 + /* */ 块), 避免误把注释里的 store.getters.xxx 当成真调用
+    //   scanOnly 跟 processTarget 同步长度 (注释 → 等长空格), 这样 reviewItems 触发用 scanOnly 结果
+    //   但 processTarget 写回时仍含原注释, 不会丢
+    const scanOnly = processTarget
+      .replace(/\/\*[\s\S]*?\*\//g, (m) => ' '.repeat(m.length))
+      .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length))
+
     // 保存原始 processTarget 供最后判断是否真的改了
     const originalProcessTarget = processTarget
 
@@ -254,9 +261,14 @@ const plugin: TransformPlugin = {
         const exportName = storeIdToExportName(storeName)
         storeImportsNeeded.add(exportName)
         if (!GETTER_TO_STORE[getterName]) {
-          reviewItems.push(
-            `store.getters.${getterName} 未知 getter,fallback 到 use${storeName.charAt(0).toUpperCase() + storeName.slice(1)}Store()。请确认实际 store 名字。`,
-          )
+          // iter-117: 只有 scanOnly (去注释) 里也有这个 getter, 才标 review
+          //   避免注释里的 store.getters.xxx 误报
+          const scanRe = new RegExp(String.raw`(?<![.\w$])\w*store\.getters\.${getterName}\b`)
+          if (scanRe.test(scanOnly)) {
+            reviewItems.push(
+              `store.getters.${getterName} 未知 getter,fallback 到 use${storeName.charAt(0).toUpperCase() + storeName.slice(1)}Store()。请确认实际 store 名字。`,
+            )
+          }
         }
         return `${exportName}().${getterName}`
       },
