@@ -4,13 +4,14 @@
 
 ## Open
 
-### C1. Pinia store id æ¨æ–­ä¸å‡†ï¼ˆæ ‡ review è®©ç”¨æˆ·æ‰‹æ”¹ï¼‰
+### ~~C1. Pinia store id æ¨æ–­ä¸å‡†ï¼ˆæ ‡ review è®©ç”¨æˆ·æ‰‹æ”¹ï¼‰~~ âœ… å·²ä¿® (iter-057, 0 è§¦å‘)
 
 - **Type**: cosmetic
 - **Severity**: minor
 - **Files**: `examples/vue2-manage-master/src/store/index.js`, `examples/ve-admin-test/src/store/index.js` ç­‰æ‰€æœ‰ `index.js` store
 - **ç°çŠ¶ (iter-043)**: `inferStoreNameFromPath('src/store/index.js')` è¿”å› `'store'`ï¼Œæ‰€ä»¥è¾“å‡º `export const useStoreStore = defineStore("store", {...})` â€” store id é‡å¤äº†"store"ä¸¤æ¬¡ï¼Œä¸å¤Ÿæ˜ç¡®
 - **ä¿®å¤ç­–ç•¥**: å·²åŠ  review æç¤ºç”¨æˆ·æ”¹ store id å’Œ export åå­—ï¼›è‡ªåŠ¨æ”¹éœ€è¦æ‰«æé¡¹ç›®å…¶ä»–æ–‡ä»¶çš„ import è¯­å¥ï¼ˆä¸åœ¨æœ¬è½®èŒƒå›´ï¼‰
+- **iter-057 éªŒè¯**: åœ¨ 11111/ (iter-050 ç»ˆç‰ˆ) å’Œ iter-054 è¾“å‡ºé‡Œ, 0 ä¸ªæ–‡ä»¶å‡ºç° `useStoreStore / useAppAppStore / useUserUserStore` é‡å¤ store åå­—. å®é™…å·²ä¸æ˜¯é—®é¢˜, å…³é—­.
 
 ### C2. P1-1 è¾¹ç¼˜æƒ…å†µï¼štemplate ref ä¸ data å­—æ®µåŒåï¼ˆå·²éƒ¨åˆ†ä¿®ï¼Œæ¨¡æ¿æ”¹åä½†æœ‰æ­§ä¹‰ï¼‰
 
@@ -641,85 +642,89 @@ eactive</defineEmits< âœ“
 - å…¶ä»–æŒ‡æ ‡: compileOk / semanticDiff / runtimeSafe ä¸å˜ (1.000 / 1.000 / 1.000)
 
 
-## iter-043 highlights: ¶Ëµ½¶Ë 0 ±¨´í (vue2-manage-master / ve-admin-test / vue2-aegis / permission)
+## iter-043 highlights: ï¿½Ëµï¿½ï¿½ï¿½ 0 ï¿½ï¿½ï¿½ï¿½ (vue2-manage-master / ve-admin-test / vue2-aegis / permission)
 
-### ±Õ»·Ä¿±ê
-ÈÃ 	ransform ÔÚ 4 ¸öÕæÊµ Vue 2 ÏîÄ¿ÉÏ**È«²¿ 0 ´íÎó**Í¨¹ı (²»½ö½öÊÇ sample outputValid=true)¡£Ç° 42 ÂÖµü´úÒÅÁôÁË 6 ¸ö P0 + 4 ¸ö P1 ¼¶ bug ×èÈû¶Ëµ½¶ËÅÜÍ¨¡£ÕâÒ»ÂÖ°Ñ 4 ¸öºËĞÄ sample (vue2-manage-master¡¢ve-admin-test¡¢vue2-aegis¡¢vue2-element-touzi-admin-dev-permission) È«²¿ÅÜµ½ ´íÎó: 0¡£
+### ï¿½Õ»ï¿½Ä¿ï¿½ï¿½
+ï¿½ï¿½ 	ransform ï¿½ï¿½ 4 ï¿½ï¿½ï¿½ï¿½Êµ Vue 2 ï¿½ï¿½Ä¿ï¿½ï¿½**È«ï¿½ï¿½ 0 ï¿½ï¿½ï¿½ï¿½**Í¨ï¿½ï¿½ (ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ sample outputValid=true)ï¿½ï¿½Ç° 42 ï¿½Öµï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 6 ï¿½ï¿½ P0 + 4 ï¿½ï¿½ P1 ï¿½ï¿½ bug ï¿½ï¿½ï¿½ï¿½ï¿½Ëµï¿½ï¿½ï¿½ï¿½ï¿½Í¨ï¿½ï¿½ï¿½ï¿½Ò»ï¿½Ö°ï¿½ 4 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ sample (vue2-manage-masterï¿½ï¿½ve-admin-testï¿½ï¿½vue2-aegisï¿½ï¿½vue2-element-touzi-admin-dev-permission) È«ï¿½ï¿½ï¿½Üµï¿½ ï¿½ï¿½ï¿½ï¿½: 0ï¿½ï¿½
 
-### ĞŞ¸´µÄ 9 ¸ö bug
+### ï¿½Ş¸ï¿½ï¿½ï¿½ 9 ï¿½ï¿½ bug
 
 **composition plugin (P0/P1)**
-- P0-3: reactive ¶ÔÏóµÄ 	his.x = {...} ´í×ª³É splice(0, x.length, ...) (¶ÔÏóÃ»ÓĞ splice). ĞŞ¸´: ¼Ó isArray ×Ö¶Î, ¶ÔÏóÓÃ Object.assign, Êı×éÓÃ splice.
-- P0-2: Vuex ×ÔÓÉ±äÁ¿ const adminInfo = ref(null) ±»ÍÆµ½ watch/mounted Ö®ºó, ´¥·¢ TDZ. ĞŞ¸´: ÒÆµ½ section 4.5, ÔÚ computed/watch Ö®Ç°.
-- P0-5: ...mapState(['x']) / ...mapActions(['y']) Ã»±»Ê¶±ğ, ×ß free variable fallback ¡ú ef(null) ¶ø²»ÊÇ computed(() => store.x). ĞŞ¸´: ÊµÏÖ detectVuexUsage + collectMapXxxSpread ÕæÕıÉ¨ export default ÀïµÄ spread, ×¢Èë useXxxStore import, Ìæ»» 	his.x ¡ú x.value / 	his.y() ¡ú y().
-- P1-1: <el-form ref="X"> ¸ú data ×Ö¶Î X Í¬Ãû, Ä£°å ref ±»¸ÄÃûÎª XRef µ« __refsMap Ã»Ìî, ¶¯Ì¬ 	his.[formName] ÄÃµ½ undefined. ĞŞ¸´: µ÷ÕıÔòÉ¨ <template> ¿éÊÕ¼¯ ref="x", Ä£°å ref/data ³åÍ»Ê±¸ø __refsMap ¼Ó Ô­Ãû: ĞÂÃû alias, ¼æÈİÀÏµÄ¶¯Ì¬²éÕÒ.
-- P1-4: 	his.<computed>.push(...) ×ª³É <computed>.push(...) (ComputedRef Ã»ÓĞ push). ĞŞ¸´: ¼ì²â 	his.x.<method>( Ä£Ê½, ÔÚ method-call ĞÎÊ½¼Ó .value, ²¢±ê review ËµÃ÷ computed mutation ÓïÒå±ä»¯.
+- P0-3: reactive ï¿½ï¿½ï¿½ï¿½ï¿½ 	his.x = {...} ï¿½ï¿½×ªï¿½ï¿½ splice(0, x.length, ...) (ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ splice). ï¿½Ş¸ï¿½: ï¿½ï¿½ isArray ï¿½Ö¶ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Object.assign, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ splice.
+- P0-2: Vuex ï¿½ï¿½ï¿½É±ï¿½ï¿½ï¿½ const adminInfo = ref(null) ï¿½ï¿½ï¿½Æµï¿½ watch/mounted Ö®ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ TDZ. ï¿½Ş¸ï¿½: ï¿½Æµï¿½ section 4.5, ï¿½ï¿½ computed/watch Ö®Ç°.
+- P0-5: ...mapState(['x']) / ...mapActions(['y']) Ã»ï¿½ï¿½Ê¶ï¿½ï¿½, ï¿½ï¿½ free variable fallback ï¿½ï¿½ 
+ef(null) ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ computed(() => store.x). ï¿½Ş¸ï¿½: Êµï¿½ï¿½ detectVuexUsage + collectMapXxxSpread ï¿½ï¿½ï¿½ï¿½É¨ export default ï¿½ï¿½ï¿½ spread, ×¢ï¿½ï¿½ useXxxStore import, ï¿½æ»» 	his.x ï¿½ï¿½ x.value / 	his.y() ï¿½ï¿½ y().
+- P1-1: <el-form ref="X"> ï¿½ï¿½ data ï¿½Ö¶ï¿½ X Í¬ï¿½ï¿½, Ä£ï¿½ï¿½ ref ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Îª XRef ï¿½ï¿½ __refsMap Ã»ï¿½ï¿½, ï¿½ï¿½Ì¬ 	his.[formName] ï¿½Ãµï¿½ undefined. ï¿½Ş¸ï¿½: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½É¨ <template> ï¿½ï¿½ï¿½Õ¼ï¿½ ref="x", Ä£ï¿½ï¿½ ref/data ï¿½ï¿½Í»Ê±ï¿½ï¿½ __refsMap ï¿½ï¿½ Ô­ï¿½ï¿½: ï¿½ï¿½ï¿½ï¿½ alias, ï¿½ï¿½ï¿½ï¿½ï¿½ÏµÄ¶ï¿½Ì¬ï¿½ï¿½ï¿½ï¿½.
+- P1-4: 	his.<computed>.push(...) ×ªï¿½ï¿½ <computed>.push(...) (ComputedRef Ã»ï¿½ï¿½ push). ï¿½Ş¸ï¿½: ï¿½ï¿½ï¿½ 	his.x.<method>( Ä£Ê½, ï¿½ï¿½ method-call ï¿½ï¿½Ê½ï¿½ï¿½ .value, ï¿½ï¿½ï¿½ï¿½ review Ëµï¿½ï¿½ computed mutation ï¿½ï¿½ï¿½ï¿½ä»¯.
 
 **vuex-pinia plugin (P0)**
-- P0-4: const state = {...} / const mutations = {...} / const actions = {...} ¶¥²ãÉùÃ÷Ã»É¾, ¸úĞÂÉú³ÉµÄ defineStore ÖØ¸´. ĞŞ¸´: ÊÕ¼¯ stateMutationGetterActionPaths, ×ª»»ÍêºóÖğ¸ö path.remove.
-- iter-043 ĞÂÔö: 
-ew Vuex.Store({modules: <identifier>}) ĞÎÊ½ (modules ÊÇ const ÒıÓÃ) Ã»±»Ê¶±ğÎª modules Ä£Ê½, ºóĞø codegen °Ñ export Èû½ø IIFE ´¥·¢ "import/export may only appear at the top level". ĞŞ¸´: °Ñ uexStoreCall = null ¸Ä³É if (hasModules) return early return, ÍêÈ«Ìø¹ı×Ô¶¯×ª»» + ±ê review.
+- P0-4: const state = {...} / const mutations = {...} / const actions = {...} ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã»É¾, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Éµï¿½ defineStore ï¿½Ø¸ï¿½. ï¿½Ş¸ï¿½: ï¿½Õ¼ï¿½ stateMutationGetterActionPaths, ×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ path.remove.
+- iter-043 ï¿½ï¿½ï¿½ï¿½: 
+ew Vuex.Store({modules: <identifier>}) ï¿½ï¿½Ê½ (modules ï¿½ï¿½ const ï¿½ï¿½ï¿½ï¿½) Ã»ï¿½ï¿½Ê¶ï¿½ï¿½Îª modules Ä£Ê½, ï¿½ï¿½ï¿½ï¿½ codegen ï¿½ï¿½ export ï¿½ï¿½ï¿½ï¿½ IIFE ï¿½ï¿½ï¿½ï¿½ "import/export may only appear at the top level". ï¿½Ş¸ï¿½: ï¿½ï¿½ uexStoreCall = null ï¿½Ä³ï¿½ if (hasModules) return early return, ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½ï¿½Ô¶ï¿½×ªï¿½ï¿½ + ï¿½ï¿½ review.
 
 **vue3-template plugin (P1)**
-- P1-2: <el-dialog slot="footer"> ±» wrap ½ø <template #footer> ºó, ÄÚ²ã <div slot="footer"> µÄ slot ÊôĞÔÃ»°şµô, Element Plus ÖØ¸´äÖÈ¾. ĞŞ¸´: ÔÚ slot-rewriting.ts µÄ uildTemplateOpenTag / ebuildElementParts Àï, Ìø¹ı±»¹ıÂË attr Ê±Ö»±£ÁôÇ°µ¼¿Õ°×, ²»¸´ÖÆ slot ÎÄ±¾. ¼Ó 2 ¸ö»Ø¹é²âÊÔ.
+- P1-2: <el-dialog slot="footer"> ï¿½ï¿½ wrap ï¿½ï¿½ <template #footer> ï¿½ï¿½, ï¿½Ú²ï¿½ <div slot="footer"> ï¿½ï¿½ slot ï¿½ï¿½ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½, Element Plus ï¿½Ø¸ï¿½ï¿½ï¿½È¾. ï¿½Ş¸ï¿½: ï¿½ï¿½ slot-rewriting.ts ï¿½ï¿½ uildTemplateOpenTag / 
+ebuildElementParts ï¿½ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ attr Ê±Ö»ï¿½ï¿½ï¿½ï¿½Ç°ï¿½ï¿½ï¿½Õ°ï¿½, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ slot ï¿½Ä±ï¿½. ï¿½ï¿½ 2 ï¿½ï¿½ï¿½Ø¹ï¿½ï¿½ï¿½ï¿½.
 
 **vue-router-v4 plugin (P1)**
-- P1-3: strict: process.env.NODE_ENV !== 'production' Ã»±»É¾ (Vue Router 4 Ã»ÓĞ strict Ñ¡Ïî), ËÀ´úÂë. ĞŞ¸´: ÔÚ Pass C µÄ properties Ñ­»·Àï¼ì²â strict: ¼ü²¢ continue, Ä©Î²±ê review. Í¬Ê±¾«È·ÇåÀíÎ´ÓÃµÄ createWebHistory / createWebHashHistory import.
+- P1-3: strict: process.env.NODE_ENV !== 'production' Ã»ï¿½ï¿½É¾ (Vue Router 4 Ã»ï¿½ï¿½ strict Ñ¡ï¿½ï¿½), ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½. ï¿½Ş¸ï¿½: ï¿½ï¿½ Pass C ï¿½ï¿½ properties Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ strict: ï¿½ï¿½ï¿½ï¿½ continue, Ä©Î²ï¿½ï¿½ review. Í¬Ê±ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½Î´ï¿½Ãµï¿½ createWebHistory / createWebHashHistory import.
 
 ### iter-043 state
 
-| Sample | ÎÄ¼şÊı | ´íÎóÊı | review Êı |
+| Sample | ï¿½Ä¼ï¿½ï¿½ï¿½ | ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ | review ï¿½ï¿½ |
 |---|---|---|---|
 | vue2-manage-master | 28 | **0** ? | 40 |
 | ve-admin-test (87k star) | 195 | **0** ? | 198 |
 | vue2-aegis | 92 | **0** ? | - |
 | vue2-element-touzi-admin-dev-permission | - | **0** ? | - |
 
-examples/222/ ÒÑÓÃ×îĞÂ´úÂëÖØÅÜ¸²¸Ç (¾É°æ±¾±¸·İµ½ examples/222_legacy_20260810_212956/)¡£
+examples/222/ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü¸ï¿½ï¿½ï¿½ (ï¿½É°æ±¾ï¿½ï¿½ï¿½İµï¿½ examples/222_legacy_20260810_212956/)ï¿½ï¿½
 
-### 0 ±¨´í ¡Ù 0 review
-ÅÜÍ¨Ö»´ú±í codegen ×Ô¼ì¹ı + ²»»áÔËĞĞÊ±Å× ReferenceError / SyntaxError. Review Ïî (40 ¸ö) ´ó¶àÊÇ:
-- computed ÒıÓÃÓïÒå±ä»¯
-- Pinia store id Ì«Í¨ÓÃ
-- el-icon ¾É class ÓÃ·¨
-- Ç¶Ì× callback ÀïµÄ this
+### 0 ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ 0 review
+ï¿½ï¿½Í¨Ö»ï¿½ï¿½ï¿½ï¿½ codegen ï¿½Ô¼ï¿½ï¿½ + ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ ReferenceError / SyntaxError. Review ï¿½ï¿½ (40 ï¿½ï¿½) ï¿½ï¿½ï¿½ï¿½ï¿½:
+- computed ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ä»¯
+- Pinia store id Ì«Í¨ï¿½ï¿½
+- el-icon ï¿½ï¿½ class ï¿½Ã·ï¿½
+- Ç¶ï¿½ï¿½ callback ï¿½ï¿½ï¿½ this
 
-ÕâĞ© review ÊÇ¸øÓÃ»§¿´µÄ hints, ²»ÊÇ bug.
+ï¿½ï¿½Ğ© review ï¿½Ç¸ï¿½ï¿½Ã»ï¿½ï¿½ï¿½ï¿½ï¿½ hints, ï¿½ï¿½ï¿½ï¿½ bug.
 
-### ÈÔ open µÄ minor (·Ç×èÈû)
-- C1: Pinia store id ÍÆ¶Ï²»×¼ (Ò»°ãÊÇ "store" Ì«Í¨ÓÃ)
-- C2: P1-1 Ä£°å ref ¸ÄÃûºó, ÓÃ»§Ğ´ËÀ ef="X" ÈÔÒıÓÃÀÏÃû×Ö (µ« alias ÒÑ¼Óµ½ __refsMap, ²»»á±À)
-- #15 render shortcut: ½ö review ÌáÊ¾, ²»×Ô¶¯¸Ä
+### ï¿½ï¿½ open ï¿½ï¿½ minor (ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
+- C1: Pinia store id ï¿½Æ¶Ï²ï¿½×¼ (Ò»ï¿½ï¿½ï¿½ï¿½ "store" Ì«Í¨ï¿½ï¿½)
+- C2: P1-1 Ä£ï¿½ï¿½ ref ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½, ï¿½Ã»ï¿½Ğ´ï¿½ï¿½ 
+ef="X" ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½ alias ï¿½Ñ¼Óµï¿½ __refsMap, ï¿½ï¿½ï¿½ï¿½ï¿½)
+- #15 render shortcut: ï¿½ï¿½ review ï¿½ï¿½Ê¾, ï¿½ï¿½ï¿½Ô¶ï¿½ï¿½ï¿½
 
-## iter-046 highlights: **¶Ëµ½¶Ë build Í¨¹ı** (vue2-manage-master ¡ú Vite production build 0 ´í)
+## iter-046 highlights: **ï¿½Ëµï¿½ï¿½ï¿½ build Í¨ï¿½ï¿½** (vue2-manage-master ï¿½ï¿½ Vite production build 0 ï¿½ï¿½)
 
-### ±Õ»·Ä¿±ê
-ÈÃ×ª³öµÄ´úÂë**ÕæÊµÄÜ Vue 3 build**£¬²»½ö½öÊÇ plugin selfCheck Í¨¹ı¡£´îÁËÒ»¸ö _build_verify ²âÊÔÏîÄ¿£¨Vite 5 + Vue 3.4 + Pinia + Element Plus£©£¬°Ñ examples/vue2-manage-master/src/ ×ª³öµÄ´úÂë¿½¹ıÈ¥£¬**
-pm run build 4.42s Íê³É£¬0 errors**¡£
+### ï¿½Õ»ï¿½Ä¿ï¿½ï¿½
+ï¿½ï¿½×ªï¿½ï¿½ï¿½Ä´ï¿½ï¿½ï¿½**ï¿½ï¿½Êµï¿½ï¿½ Vue 3 build**ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ plugin selfCheck Í¨ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ _build_verify ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½Vite 5 + Vue 3.4 + Pinia + Element Plusï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ examples/vue2-manage-master/src/ ×ªï¿½ï¿½ï¿½Ä´ï¿½ï¿½ë¿½ï¿½ï¿½È¥ï¿½ï¿½**
+pm run build 4.42s ï¿½ï¿½É£ï¿½0 errors**ï¿½ï¿½
 
-### ĞŞµÄ 6 ¸öÕæ bug£¨Ö®Ç° selfCheck ¶¼Â©µô£©
+### ï¿½Şµï¿½ 6 ï¿½ï¿½ï¿½ï¿½ bugï¿½ï¿½Ö®Ç° selfCheck ï¿½ï¿½Â©ï¿½ï¿½ï¿½ï¿½
 
-| ID | Bug | ¸ùÒò | ĞŞ·¨ |
+| ID | Bug | ï¿½ï¿½ï¿½ï¿½ | ï¿½Ş·ï¿½ |
 |---|---|---|---|
-| P0-A | unction addFood(foodForm) {} ¸ú import { addFood } ×²Ãû, babel ¾Ü¾ø | Vue 2 method ¸ú import ²»Í¬ scope, Ç¨µ½ setup ¶¥²ã³åÍ» | composition plugin ¼Ó importNames ¼ì²é, ³åÍ»Ê± method ¸ÄÃûÎª __ |
-| P0-B | main.js import useStoreStore µ« store export useAppStore | vue3-entry ºÍ vuex-pinia ¸÷×ÔÍÆ¶Ï store Ãû, ²»Ò»ÖÂ | vue3-entry ¼Ó getMainStoreExportName fallback, ÍÆ²»³öÊ±Ç¿ÖÆ useAppStore |
-| P0-C | outer/index.js ÓĞ Vue.use(Router) µ« Router Ã» import | vue-router-v4 Ã»´¦Àí Vue 2 plugin ²ĞÁô | ¼Ó Pass 0: É¨ Vue.use(X) µ÷ÓÃ, X ÒÑ import ÔòÉ¾ÕûĞĞ, Î´ import Ôò±ê review |
-| P0-D | main.js: createApp(defineComponent({template:'<App/>'})) Vue 3 ²»Ö§³Ö | vue3-entry °Ñ Vue 2 root options ÕÕ°á | ¼ì²â components: { App } 1 ÏîÊ±ÓÃ createApp(App) + import App from './App.vue' |
-| iter-46 | <i v-else slot="icon"> ×ª³É <el-icon v-else slot="icon"> È»ºó±» wrap ½ø <template #icon>, ±àÒëÊ§°Ü | elementui icon ×ª»»Ê±±£ÁôÁË slot ÊôĞÔ, ¸ú v-else ĞÖµÜ½ÚµãÂß¼­³åÍ» | elementui icon.ts °şµô slot / slot-scope ÊôĞÔ |
-| P0-G | 	his.userCount = res[0].count ÔÚ .then(res => {...}) ±Õ°üÀïÃ»Ìæ»» | data field rename (userCount ¡ú userCountData) ºó, replaceThisInBody Ö»²é .name | Í¬Ê±²é .originalName, ÓÃÔ­ÃûÒ²ÅÜÒ»±éÌæ»» |
+| P0-A | unction addFood(foodForm) {} ï¿½ï¿½ import { addFood } ×²ï¿½ï¿½, babel ï¿½Ü¾ï¿½ | Vue 2 method ï¿½ï¿½ import ï¿½ï¿½Í¬ scope, Ç¨ï¿½ï¿½ setup ï¿½ï¿½ï¿½ï¿½ï¿½Í» | composition plugin ï¿½ï¿½ importNames ï¿½ï¿½ï¿½, ï¿½ï¿½Í»Ê± method ï¿½ï¿½ï¿½ï¿½Îª __ |
+| P0-B | main.js import useStoreStore ï¿½ï¿½ store export useAppStore | vue3-entry ï¿½ï¿½ vuex-pinia ï¿½ï¿½ï¿½ï¿½ï¿½Æ¶ï¿½ store ï¿½ï¿½, ï¿½ï¿½Ò»ï¿½ï¿½ | vue3-entry ï¿½ï¿½ getMainStoreExportName fallback, ï¿½Æ²ï¿½ï¿½ï¿½Ê±Ç¿ï¿½ï¿½ useAppStore |
+| P0-C | 
+outer/index.js ï¿½ï¿½ Vue.use(Router) ï¿½ï¿½ Router Ã» import | vue-router-v4 Ã»ï¿½ï¿½ï¿½ï¿½ Vue 2 plugin ï¿½ï¿½ï¿½ï¿½ | ï¿½ï¿½ Pass 0: É¨ Vue.use(X) ï¿½ï¿½ï¿½ï¿½, X ï¿½ï¿½ import ï¿½ï¿½É¾ï¿½ï¿½ï¿½ï¿½, Î´ import ï¿½ï¿½ï¿½ review |
+| P0-D | main.js: createApp(defineComponent({template:'<App/>'})) Vue 3 ï¿½ï¿½Ö§ï¿½ï¿½ | vue3-entry ï¿½ï¿½ Vue 2 root options ï¿½Õ°ï¿½ | ï¿½ï¿½ï¿½ components: { App } 1 ï¿½ï¿½Ê±ï¿½ï¿½ createApp(App) + import App from './App.vue' |
+| iter-46 | <i v-else slot="icon"> ×ªï¿½ï¿½ <el-icon v-else slot="icon"> È»ï¿½ï¿½ wrap ï¿½ï¿½ <template #icon>, ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½ | elementui icon ×ªï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ slot ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ v-else ï¿½ÖµÜ½Úµï¿½ï¿½ß¼ï¿½ï¿½ï¿½Í» | elementui icon.ts ï¿½ï¿½ï¿½ï¿½ slot / slot-scope ï¿½ï¿½ï¿½ï¿½ |
+| P0-G | 	his.userCount = res[0].count ï¿½ï¿½ .then(res => {...}) ï¿½Õ°ï¿½ï¿½ï¿½Ã»ï¿½æ»» | data field rename (userCount ï¿½ï¿½ userCountData) ï¿½ï¿½, replaceThisInBody Ö»ï¿½ï¿½ .name | Í¬Ê±ï¿½ï¿½ .originalName, ï¿½ï¿½Ô­ï¿½ï¿½Ò²ï¿½ï¿½Ò»ï¿½ï¿½ï¿½æ»» |
 
-### ÑéÖ¤
-- 	ransform examples/vue2-manage-master/src ¡ú 28 ÎÄ¼ş, 0 errors, 63 ´¦ĞŞ¸Ä, 45 Ìõ review
-- _build_verify/ ÅÜ 
-pm run build ¡ú **4.42s, 0 errors**, ²ú³ö dist/ º¬ 17 ¸ö chunk
-- examples/222 ÒÑÓÃ×îĞÂ´úÂë¸²¸Ç£¨¾É°æ±¾ÒÑÉ¾£©
+### ï¿½ï¿½Ö¤
+- 	ransform examples/vue2-manage-master/src ï¿½ï¿½ 28 ï¿½Ä¼ï¿½, 0 errors, 63 ï¿½ï¿½ï¿½Ş¸ï¿½, 45 ï¿½ï¿½ review
+- _build_verify/ ï¿½ï¿½ 
+pm run build ï¿½ï¿½ **4.42s, 0 errors**, ï¿½ï¿½ï¿½ï¿½ dist/ ï¿½ï¿½ 17 ï¿½ï¿½ chunk
+- examples/222 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â´ï¿½ï¿½ë¸²ï¿½Ç£ï¿½ï¿½É°æ±¾ï¿½ï¿½É¾ï¿½ï¿½
 
-### 0 build ±¨´í ¡Ù 0 review
-build Í¨¹ıÖ»´ú±íÄÜ compile, ²»´ú±íÄÜÅÜÆğÀ´. »¹ÓĞÕâĞ© review ÏîĞèÒªÈË¿´:
-- computed ÒıÓÃÓïÒå±ä»¯ (5 ´¦)
-- Pinia store id ÍÆ¶Ï²»×¼ (Ò»°ãÇé¿öÏÂ "app" »¹ĞĞ, ¶à store ³¡¾°ÒªÊÖ¸Ä)
-- ¸÷ÖÖ el-form validate »Øµ÷·ç¸ñ (Element Plus 2 ¸Ä Promise)
-- el-icon Í¼±êÃ»×¢²á (Òª¿¿ main.js È«¾Ö app.component ×¢²á)
+### 0 build ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ 0 review
+build Í¨ï¿½ï¿½Ö»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ compile, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ğ© review ï¿½ï¿½ï¿½ï¿½Òªï¿½Ë¿ï¿½:
+- computed ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ä»¯ (5 ï¿½ï¿½)
+- Pinia store id ï¿½Æ¶Ï²ï¿½×¼ (Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ "app" ï¿½ï¿½ï¿½ï¿½, ï¿½ï¿½ store ï¿½ï¿½ï¿½ï¿½Òªï¿½Ö¸ï¿½)
+- ï¿½ï¿½ï¿½ï¿½ el-form validate ï¿½Øµï¿½ï¿½ï¿½ï¿½ (Element Plus 2 ï¿½ï¿½ Promise)
+- el-icon Í¼ï¿½ï¿½Ã»×¢ï¿½ï¿½ (Òªï¿½ï¿½ main.js È«ï¿½ï¿½ app.component ×¢ï¿½ï¿½)
 
-### ÈÔ open µÄ minor (·Ç×èÈû)
-- C1 / C2 / #15 (¸ú iter-043 Ò»Ñù)
+### ï¿½ï¿½ open ï¿½ï¿½ minor (ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½)
+- C1 / C2 / #15 (ï¿½ï¿½ iter-043 Ò»ï¿½ï¿½)
