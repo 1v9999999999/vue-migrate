@@ -223,6 +223,38 @@ function _runEntryTransform(ctx) {
       return
     }
 
+    // ----- 3.7 iter-052: Detect other `new X().$mount('selector')` patterns (progressBar / DetailPanel 等) -----
+    // 模式: 形如 `new ProgressBar({...}).$mount('#progress')` 或 `new DetailPanel().$mount(selector)` —
+    //   Vue 2 用来动态创建 + 挂载组件到任意 DOM 位置. Vue 3 等价物是 `createApp(X).mount(selector)`.
+    // 这里我们不能 100% 判断 X 是不是 Vue 组件(可能是别的 class),所以标 review 让用户手动改.
+    // 例外: 已经在 entryChain 处理的 (new Vue() / createApp()) 跳过.
+    traverse(file.scriptAst, {
+      CallExpression(path: any) {
+        const node = path.node
+        if (
+          !t.isMemberExpression(node.callee) ||
+          !t.isIdentifier(node.callee.property, { name: '$mount' })
+        ) return
+        // node.callee.object 应该是 `new X(...)` NewExpression
+        const obj = node.callee.object as any
+        if (!t.isNewExpression(obj)) return
+        if (!t.isIdentifier(obj.callee)) return
+        const className = obj.callee.name
+        if (className === 'Vue') return  // 已经在 entryChain 处理
+
+        const selector = node.arguments[0] && t.isStringLiteral(node.arguments[0])
+          ? node.arguments[0].value
+          : '<dynamic>'
+        utils.manualReview(
+          `检测到 \`new ${className}(...)\.\$mount(${JSON.stringify(selector)})\` — Vue 2 动态组件挂载模式。\n` +
+            `  Vue 3 等价物: \`createApp(${className}).mount(${JSON.stringify(selector)})\`\n` +
+            `  ⚠️  注意: Vue 3 挂载到选择器时,**该 DOM 节点必须存在**且**不能跨多个 createApp 共享**。\n` +
+            `  如果原来是动态创建并 append 到 body 的,Vue 3 改用 \`createApp(${className}).mount(document.createElement('div'))\` + appendChild 更稳。`,
+        )
+        utils.markChanged(`new ${className}().\$mount(${JSON.stringify(selector)})`)
+      },
+    })
+
     // ----- 3.5 P0-D: Detect "Vue 2 entry shortcut" -----
     // Pattern: options has {template: '<X/>', components: {X}}
     // This is the canonical Vue 2 entry pattern (the App component is registered locally).

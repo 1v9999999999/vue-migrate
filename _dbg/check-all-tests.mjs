@@ -31,6 +31,8 @@ const testFiles = [
   'packages/plugins/vite-scaffold/src/__tests__/test-vite-scaffold.ts',
   'packages/plugins/resource-copier/src/__tests__/test-resource-copier.ts',
   'packages/plugins/this-replacer/src/__tests__/test-this-replacer.ts',
+  'packages/plugins/vue3-entry/src/__tests__/test-new-x-mount.ts',
+  'packages/plugins/composition/src/__tests__/test-recursive-method.mjs',
 ]
 
 let totalPass = 0
