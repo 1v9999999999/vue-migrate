@@ -25,13 +25,14 @@
 
 - **Type**: not implemented
 - **Severity**: minor (现在降级为 minor, 已部分覆盖)
-- **Files**: `examples/vue2-aegis/src/main.js`, `examples/vue2-element-touzi-admin-dev-permission/src/main.js`, `examples/vue2-sample/src/main.js`, `examples/ve-admin-test/src/main.js` (4 个 entry 文件)
-- **现状 (iter-033)**: 转换后是 `createApp(defineComponent({ render: h => h(App), router, store })).mount('#app')` — Vue3 合法。**新加 manualReview 提示用户可手动简化**:
+- **Files**: `examples/vue2-aegis/src/main.js`, `examples/vue2-element-touzi-admin-dev-permission/src/main.js`, `examples/vue2-sample/src/main.js`, `examples/ve-admin-test/src/main.js` (4 个 example entry 文件,iter-063 验证)
+- **现状 (iter-033 + iter-063)**: 转换后是 `createApp(defineComponent({ render: h => h(App), router, store })).mount('#app')` — Vue3 合法。**新加 manualReview 提示用户可手动简化**:
   ```
   [#15 render shortcut] 检测到 render: h => h(App).可手动简化为: 
   createApp(App).use(router).use(store).mount('#app')
   (把原 options 里的 router/store 抽到 .use() chain,移除 render)。
   ```
+- **iter-063 验证**: vue-element-admin-master master `src/main.js` 仍有 `render: h => h(App)` (B 没手改这个, 只改了 11111/), 转换时触发 1 次 review. 11111/ (B iter-048 手改后) 0 触发.
 - **修复策略**: 只标 review,不自动改(自动改风险大:router/store 要从 options 抽到 .use() chain,需要 AST 重写)
 - **剩余**: 真正的组件 render 函数 (`render(h) {...}` 完整方法) 0 触发,无需处理
 
