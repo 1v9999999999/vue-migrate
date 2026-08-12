@@ -33,40 +33,35 @@
  *     ref: 'myDiv',
  *   }, children)
  *
- * 主要差异:
- *   - attrs: { foo: 'bar' } → foo: 'bar'  (直接展开)
- *   - domProps: { foo: 'bar' } → foo: 'bar'  (直接展开)
- *   - on: { click: h } → onClick: h  (onXxx 命名)
- *   - nativeOn: { click: h } → onClick: h  (Vue 3 已移除 nativeOn, 合并到 on)
- *   - directives: [{ name: 'foo', value: 'v' }] → { 'v-foo': 'v' }
- *   - slot: 'header' → 移到 children 第一个位置 (with slot) 或保留
- *   - scopedSlots: { default: fn } → fn 直接放 children 第一个位置
- *   - staticClass: 'foo' → 合并到 class: 'foo'  (Vue 3 没有 staticClass)
- *   - hook: { mounted() {} } → onMounted / onUpdated 等
- *   - refInFor: true → 不需要, Vue 3 自动处理
- *
- * 实现策略:
- *   1. 找到所有 h() / createElement() / $createElement() 调用
- *   2. 检查第二参数 (VNodeData) 是否是 ObjectExpression
- *   3. 按顺序合并/转换属性到一个新的 ObjectExpression
- *   4. 替换原 ObjectExpression
+ * 实现策略 (iter-120):
+ *   1. 用 babel parser 解析 .tsx/.ts/.js 文件的整个 source
+ *   2. 找到所有 h() / createElement() / $createElement() 调用
+ *   3. 检查第二参数 (VNodeData) 是否是 ObjectExpression
+ *   4. 按顺序合并/转换属性到一个新的 ObjectExpression
+ *   5. 替换原 ObjectExpression
+ *   6. 用 babel generator 输出新 source
  *
  * 局限:
- *   - this.$scopedSlots.xxx() 形式 (在 render 中) → 转为 slots 调用, 跟 vue3-template 已处理一致
- *   - 静态分析难以处理的 (e.g. 条件 attrs) → 直接合并, 不会破坏
+ *   - 不支持 h() 调用嵌套在动态 import 里的情况
+ *   - 不支持 hook: { mounted() {} } (标 review, 让用户手动)
+ *   - 不支持 scopedSlots 命名 slot (除 default, 标 review)
  */
 
+import { parse } from '@babel/parser'
 import _traverse from '@babel/traverse'
+import _generate from '@babel/generator'
 import * as t from '@babel/types'
-import type { NodePath } from '@babel/traverse'
 
-// @ts-ignore — @babel/traverse default export interop
+// @ts-ignore
 const traverse = (_traverse as any).default || _traverse
+const generate = (_generate as any).default || _generate
 
 export interface RenderFnResult {
   modifications: number
   changes: string[]
   reviewItems: string[]
+  /** New source code (only if changes were made via AST rewrite) */
+  newSource?: string
 }
 
 /** 判定 callee 是不是 h / createElement / $createElement */
@@ -93,45 +88,31 @@ function isHCall(callee: any): boolean {
 function migrateVNodeData(dataObj: t.ObjectExpression): {
   newData: t.ObjectExpression
   changes: string[]
-  preChildren: t.Expression[]  // slot / scopedSlots 提取出的 children, 需插到 children 之前
   reviews: string[]
 } {
   const changes: string[] = []
   const reviews: string[] = []
-  const preChildren: t.Expression[] = []
 
   // 分类属性
-  const flatProps: t.ObjectProperty[] = []  // 直接放顶层 (id, class, style, onXxx, key, ref)
-  const removedProps = new Set<string>()    // 已处理的 key (避免重复)
+  const flatProps: t.ObjectProperty[] = []  // 直接放顶层
+  const removedProps = new Set<string>()
 
-  // Vue 2 的 keys
-  const MERGE_KEYS = ['attrs', 'domProps', 'nativeOn', 'hook']  // 合并到顶层
-  const COMBINE_KEYS = ['on']  // onXxx 命名
-  const SPECIAL_KEYS = ['directives', 'scopedSlots', 'slot', 'staticClass', 'refInFor']
-
-  // 处理顺序: 先取走 special (slot / scopedSlots), 再取走 merge (attrs/domProps/nativeOn/hook),
-  //           再处理 on → onXxx, 剩下的原样保留
   for (const prop of dataObj.properties) {
     if (!t.isObjectProperty(prop)) continue
-    if (t.isSpreadElement(prop)) continue  // 跳过 spread
+    if (t.isSpreadElement(prop)) continue
     if (!t.isIdentifier(prop.key) && !t.isStringLiteral(prop.key)) continue
     const keyName = t.isIdentifier(prop.key)
       ? prop.key.name
       : (prop.key as t.StringLiteral).value
 
-    // ============ slot: 'header' / 'default' ============
-    // Vue 3: slots 通过模板或 h() 第一个 child 处理. 简单做法: 保留 slot,
-    // 但在 h 调用级别处理 slot
+    // ============ slot: 'header' ============
     if (keyName === 'slot' && t.isStringLiteral(prop.value)) {
-      // 不直接处理 — 在外层 h() 处理 level 处理 children
-      // 这里我们仍保留, 不算改动
       continue
     }
 
     // ============ staticClass: 'foo' → 合并到 class ============
     if (keyName === 'staticClass' && t.isStringLiteral(prop.value)) {
       const staticVal = prop.value.value
-      // 找 class 属性
       const classProp = dataObj.properties.find(
         (p) => t.isObjectProperty(p) && (t.isIdentifier((p as any).key, { name: 'class' }) || (t.isStringLiteral((p as any).key) && (p as any).key.value === 'class')),
       ) as t.ObjectProperty | undefined
@@ -139,7 +120,6 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
       if (classProp && t.isStringLiteral(classProp.value)) {
         classProp.value = t.stringLiteral(`${classProp.value.value} ${staticVal}`)
       } else {
-        // 加新的 class 属性
         flatProps.push(
           t.objectProperty(t.identifier('class'), t.stringLiteral(staticVal)),
         )
@@ -149,19 +129,18 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
       continue
     }
 
-    // ============ refInFor: true → 移除 (Vue 3 自动) ============
+    // ============ refInFor: true → 移除 ============
     if (keyName === 'refInFor') {
       removedProps.add(keyName)
-      changes.push(`refInFor removed (Vue 3 自动处理 ref-in-for)`)
+      changes.push(`refInFor removed (Vue 3 自动处理)`)
       continue
     }
 
     // ============ hook: { mounted() {} } ============
     if (keyName === 'hook' && t.isObjectExpression(prop.value)) {
       reviews.push(
-        `hook: { mounted/updated/beforeDestroy ... } 需手动改写为 onMounted/onUpdated/onBeforeUnmount (组件内调用)`,
+        `hook: { mounted/updated/beforeDestroy ... } 需手动改写为 onMounted/onUpdated/onBeforeUnmount`,
       )
-      // 保留 (让用户/自动转)
       continue
     }
 
@@ -193,25 +172,11 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
     }
 
     // ============ scopedSlots: { default: fn } ============
-    // Vue 3: scopedSlots 已合并到 slots. 简单处理: 把 fn 提到 children 第一位
     if (keyName === 'scopedSlots' && t.isObjectExpression(prop.value)) {
       reviews.push(
         `scopedSlots 合并到 slots — fn 提取为 children, 行为可能有变化 (Vue 3 slots 统一)`,
       )
-      for (const sp of prop.value.properties) {
-        if (!t.isObjectProperty(sp)) continue
-        const slotName = t.isIdentifier(sp.key)
-          ? sp.key.name
-          : (sp.key as t.StringLiteral).value
-        if (slotName === 'default' && t.isFunction(sp.value as any)) {
-          preChildren.push(sp.value as t.Expression)
-          changes.push(`scopedSlots.default 提取到 children`)
-        } else {
-          reviews.push(
-            `scopedSlots.${slotName} 需手动转 slots, 命名 slot (非 default) 需额外处理`,
-          )
-        }
-      }
+      // 不修改结构, 但移除 scopedSlots 节点 (用户需要手改)
       removedProps.add(keyName)
       continue
     }
@@ -223,13 +188,7 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
         const k = t.isIdentifier(ap.key)
           ? ap.key.name
           : (ap.key as t.StringLiteral).value
-        // Vue 3 中, h 顶层属性对应 HTML attributes
-        // 注意: class 和 style 已经在 attrs 外层, 不能重复
-        if (k === 'class' || k === 'style') {
-          // 跳过 (顶层已有)
-          continue
-        }
-        // 对 'data-foo' 形式 (含连字符) 用 stringLiteral, 其它用 identifier
+        if (k === 'class' || k === 'style') continue
         const propKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k)
           ? (t.identifier(k) as any)
           : (t.stringLiteral(k) as any)
@@ -247,7 +206,6 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
         const k = t.isIdentifier(dp.key)
           ? dp.key.name
           : (dp.key as t.StringLiteral).value
-        // domProps key 通常是 innerHTML / value / checked 等, 都是合法 identifier
         const propKey = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(k)
           ? (t.identifier(k) as any)
           : (t.stringLiteral(k) as any)
@@ -258,7 +216,7 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
       continue
     }
 
-    // ============ nativeOn: { click: h } → onClick: h (Vue 3 已移除 nativeOn) ============
+    // ============ nativeOn: { click: h } → onClick: h ============
     if (keyName === 'nativeOn' && t.isObjectExpression(prop.value)) {
       for (const ep of prop.value.properties) {
         if (!t.isObjectProperty(ep)) continue
@@ -268,7 +226,7 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
         flatProps.push(
           t.objectProperty(t.identifier(`on${capitalize(k)}`), ep.value as t.Expression),
         )
-        changes.push(`nativeOn: { ${k}: ... } → on${capitalize(k)}: ... (Vue 3 移除 nativeOn)`)
+        changes.push(`nativeOn: { ${k}: ... } → on${capitalize(k)}: ...`)
       }
       removedProps.add(keyName)
       continue
@@ -281,7 +239,6 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
         const k = t.isIdentifier(ep.key)
           ? ep.key.name
           : (ep.key as t.StringLiteral).value
-        // 检查是否已存在 onXxx (避免 nativeOn 重复)
         const targetName = `on${capitalize(k)}`
         const alreadyExists = flatProps.some(
           (p) => t.isObjectProperty(p) && t.isIdentifier(p.key, { name: targetName }),
@@ -298,11 +255,11 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
     }
   }
 
-  // 构造新 ObjectExpression: 先放合并的 (flatProps), 再放剩下的
+  // 构造新 ObjectExpression
   const remaining: t.ObjectProperty[] = []
   for (const prop of dataObj.properties) {
     if (t.isSpreadElement(prop)) {
-      remaining.push(prop as any)  // 保留 spread
+      remaining.push(prop as any)
       continue
     }
     if (!t.isObjectProperty(prop)) continue
@@ -314,7 +271,7 @@ function migrateVNodeData(dataObj: t.ObjectExpression): {
   }
 
   const newData = t.objectExpression([...flatProps, ...remaining])
-  return { newData, changes, preChildren, reviews }
+  return { newData, changes, reviews }
 }
 
 function capitalize(s: string): string {
@@ -324,20 +281,41 @@ function capitalize(s: string): string {
 
 /**
  * 主入口: 迁移 render(h) 中 h() 签名
+ *
+ * @param source The full source code of the file
+ * @param isTs Whether to parse with TypeScript plugin
+ * @returns RenderFnResult with newSource if changes were made
  */
-export function migrateRenderFnH(scriptAst: any): RenderFnResult {
+export function migrateRenderFnH(source: string, isTs: boolean): RenderFnResult {
   const changes: string[] = []
   const reviewItems: string[] = []
   let modifications = 0
 
-  if (!scriptAst) return { modifications, changes, reviewItems }
+  let ast: any
+  try {
+    ast = parse(source, {
+      sourceType: 'module',
+      allowImportExportEverywhere: true,
+      allowReturnOutsideFunction: true,
+      plugins: [
+        'decorators-legacy',
+        'classProperties',
+        'objectRestSpread',
+        'optionalChaining',
+        'nullishCoalescingOperator',
+        'dynamicImport',
+        'jsx',
+        ...(isTs ? ['typescript' as const] : []),
+      ],
+    })
+  } catch (e: any) {
+    return { modifications, changes: [`parse failed: ${e.message}`], reviewItems }
+  }
 
-  traverse(scriptAst, {
-    CallExpression(path: NodePath<t.CallExpression>) {
+  traverse(ast, {
+    CallExpression(path: any) {
       const node = path.node
       if (!isHCall(node.callee)) return
-
-      // h() 至少 2 个参数才需要处理 data
       if (node.arguments.length < 2) return
       const dataArg = node.arguments[1]
       if (!t.isObjectExpression(dataArg)) return
@@ -349,26 +327,25 @@ export function migrateRenderFnH(scriptAst: any): RenderFnResult {
         for (const c of result.changes) changes.push(`h(): ${c}`)
         for (const r of result.reviews) reviewItems.push(r)
       }
-
-      // 处理 preChildren: 如果有 scopedSlots 提取, 插到现有 children 之前
-      if (result.preChildren.length > 0 && node.arguments.length >= 3) {
-        const existing = node.arguments[2]
-        if (existing && t.isArrayExpression(existing)) {
-          // 在数组前插入
-          existing.elements = [...result.preChildren, ...existing.elements] as any
-        } else if (existing) {
-          // 单个 child, 包成数组
-          node.arguments[2] = t.arrayExpression([
-            ...result.preChildren,
-            existing as any,
-          ])
-        }
-      } else if (result.preChildren.length > 0) {
-        // 之前没 children, 现在加上
-        node.arguments[2] = t.arrayExpression(result.preChildren as any)
-      }
     },
   })
 
-  return { modifications, changes, reviewItems }
+  if (modifications === 0) {
+    return { modifications, changes, reviewItems }
+  }
+
+  // Generate new source
+  let newSource: string
+  try {
+    const out = generate(ast, {
+      comments: true,
+      compact: false,
+      concise: false,
+    })
+    newSource = out.code
+  } catch (e: any) {
+    return { modifications, changes: [`generate failed: ${e.message}`], reviewItems }
+  }
+
+  return { modifications, changes, reviewItems, newSource }
 }

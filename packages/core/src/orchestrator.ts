@@ -23,7 +23,136 @@ import { codegenProject } from './codegen.js'
 import { reportProject } from './reporter.js'
 import { getPlugins } from './plugin.js'
 import { createTransformContext } from './context.js'
-import type { ProjectContext, ReportItem } from './types.js'
+import type { FileNode, ProjectContext, ReportItem, TransformPlugin } from './types.js'
+
+/** iter-122b: per-priority barrier with parallel-across-files.
+ *  - 每个 priority 级别, 在所有 file 上 barrier 同步
+ *  - 同一 priority 内的不同 file, parallel 执行 (限流 CONCURRENCY 个 worker)
+ *  - 同一 file 内, 同一 priority 下的多个 plugin 串行 (plugin 间可能有依赖)
+ */
+const DEFAULT_FILE_CONCURRENCY = 8
+
+async function runPluginsWithPriorityBarrier(ctx: ProjectContext): Promise<void> {
+  // 1. 按 priority 分组 plugin.  同一 priority 的 plugin 视作"同 phase"
+  const byPriority = new Map<number, TransformPlugin[]>()
+  for (const plugin of ctx.plugins) {
+    if (!plugin.transform) continue
+    const p = plugin.priority ?? 0
+    if (!byPriority.has(p)) byPriority.set(p, [])
+    byPriority.get(p)!.push(plugin)
+  }
+  // 2. priority 倒序
+  const priorities = [...byPriority.keys()].sort((a, b) => b - a)
+
+  // 3. file 列表
+  const fileList: FileNode[] = [...ctx.files.values()]
+
+  // 4. worker pool
+  const concurrency = Math.max(
+    1,
+    Math.min(DEFAULT_FILE_CONCURRENCY, fileList.length || 1),
+  )
+
+  // 5. iter-122b: 真正的 per-priority barrier.
+  //   每个 priority 级别, 在所有 file 上 barrier 同步:
+  //   - ALL workers 完成 priority X 的所有 file 之前, 任何 worker 不开始 priority X-1
+  //   - 这样保证 vuex-pinia(priority 9) 写 ctx.storeNames.mainExportName
+  //     一定在 composition(priority 0) 读之前完成
+  //   - 同一 priority 内, file 之间 parallel
+  //   - 同一 file 内, 同一 priority 下的多个 plugin 串行
+  let nextIdx = 0
+  for (const p of priorities) {
+    const pluginsAtP = byPriority.get(p)!
+    nextIdx = 0
+    async function worker(): Promise<void> {
+      while (true) {
+        const myIdx = nextIdx++
+        if (myIdx >= fileList.length) return
+        const file = fileList[myIdx]
+        for (const plugin of pluginsAtP) {
+          const outcome = await runOnePluginOnFile(plugin, file, ctx)
+          if (outcome === 'failed') {
+            // 失败: 跳过当前 file 剩余 plugin (iter-118 行为)
+            return
+          }
+        }
+      }
+    }
+    const workers: Promise<void>[] = []
+    for (let i = 0; i < concurrency; i++) workers.push(worker())
+    await Promise.all(workers)
+  }
+}
+
+/** 跑一个 plugin 在一个 file 上, 返回 'ok' | 'skipped' | 'failed' */
+async function runOnePluginOnFile(
+  plugin: TransformPlugin,
+  file: FileNode,
+  ctx: ProjectContext,
+): Promise<'ok' | 'skipped' | 'failed'> {
+  // 按 plugins 名字过滤
+  if (ctx.config.plugins && !ctx.config.plugins.includes(plugin.name)) return 'skipped'
+  // 按 fileKinds 过滤
+  if (plugin.fileKinds && !plugin.fileKinds.includes(file.kind)) return 'skipped'
+  if (!file.scriptAst) return 'skipped'
+  // iter-118: 跳过测试文件
+  const isTestFile = /\.(spec|test)\.[jt]sx?$/.test(file.path) || /[\\/]__tests__[\\/]/.test(file.path)
+  if (isTestFile) {
+    file.transforms.push({
+      plugin: plugin.name,
+      message: 'skipped: test file',
+      changed: false,
+    })
+    return 'skipped'
+  }
+  // iter-118: file-level skip lock
+  if ((file as any).__skipped && plugin.name !== 'composition') {
+    file.transforms.push({
+      plugin: plugin.name,
+      message: `skipped: file marked as skipped (${(file as any).__skipped})`,
+      changed: false,
+    })
+    return 'skipped'
+  }
+  // iter-122c: file-level failed lock (parser failed / 之前的 plugin 抛错)
+  // 源 corruption 时已被标记, 跳过所有后续 plugin
+  if ((file as any).__failed) {
+    file.transforms.push({
+      plugin: plugin.name,
+      message: `skipped: file marked as failed (${(file as any).__failedPlugin})`,
+      changed: false,
+    })
+    return 'skipped'
+  }
+
+  const transformCtx = createTransformContext(file, ctx)
+  try {
+    await plugin.transform!(transformCtx)
+    file.transforms.push({
+      plugin: plugin.name,
+      message: transformCtx['__lastMessage'] || 'transformed',
+      changed: transformCtx['__changed'] || false,
+    })
+    if (transformCtx['__changed']) {
+      file.changed = true
+      ctx.stats.modifiedFiles++
+    }
+    return 'ok'
+  } catch (e: any) {
+    file.transforms.push({
+      plugin: plugin.name,
+      message: 'transform failed',
+      changed: false,
+      error: e.message,
+    })
+    ctx.stats.errors++
+    // iter-118: 失败标记 + 后续 plugin 跳过
+    ;(file as any).__failed = true
+    ;(file as any).__failedPlugin = plugin.name
+    ;(file as any).__failedError = e.message
+    return 'failed'
+  }
+}
 
 export interface OrchestratorOptions {
   root: string
@@ -94,76 +223,17 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
     }
   }
 
-  for (const file of ctx.files.values()) {
-    if (!file.scriptAst) continue
-    for (const plugin of ctx.plugins) {
-      // 按 plugins 名字过滤
-      if (ctx.config.plugins && !ctx.config.plugins.includes(plugin.name)) continue
-      // 按 fileKinds 过滤
-      if (plugin.fileKinds && !plugin.fileKinds.includes(file.kind)) continue
-      if (!plugin.transform) continue
-      // iter-118: 跳过测试文件 (.spec.js / .test.js / .spec.ts / .test.ts / __tests__/)
-      //   测试文件不该被 vue-migrate 转换 (jest/vitest 期望原 Vue 2 语法)
-      const isTestFile = /\.(spec|test)\.[jt]sx?$/.test(file.path) || /[\\/]__tests__[\\/]/.test(file.path)
-      if (isTestFile) {
-        file.transforms.push({
-          plugin: plugin.name,
-          message: 'skipped: test file',
-          changed: false,
-        })
-        continue
-      }
-      // iter-118: file-level lock (composition 设的, 例如 Nuxt 特殊函数), 后续 plugin 看到就 early return
-      //   避免 plugin 扫到 Nuxt asyncData context 里的 this.$route/store.dispatch 等误报 review
-      if ((file as any).__skipped && plugin.name !== 'composition') {
-        file.transforms.push({
-          plugin: plugin.name,
-          message: `skipped: file marked as skipped (${(file as any).__skipped})`,
-          changed: false,
-        })
-        continue
-      }
+  // iter-122b: per-priority barrier with parallel-across-files.
+  //   原实现: for each file { for each plugin } — 全 serial, N_files × N_plugins
+  //   新实现: for each priority { for each file (parallel) { for each plugin at this priority } }
+  //   - 在 priority 边界 barrier: 低 priority plugin 必等所有高 priority 在所有 file 上完成
+  //     (保证 vuex-pinia(p=9) 写 ctx.storeNames.mainExportName 在 composition(p=0) 读之前完成)
+  //   - 同一 priority 内, file 之间 parallel (file 之间不共享 state, 安全)
+  //   - 同一 file 内, 同一 priority 的 plugin 串行 (plugin 可能有内部依赖)
+  //   - 配合 CONCURRENCY 限流, 避免 200+ file 项目瞬间起 200 个 Promise 把 IO 打爆
+  await runPluginsWithPriorityBarrier(ctx)
 
-      // iter-118: file-level skip lock (e.g. Nuxt 特殊函数) — 后续所有 plugin 跳过
-      //   这是 pre-pass 标的 (__skipped), 让 plugin 不再 markChanged, 也不出 review
-      if ((file as any).__skipped && plugin.name !== 'composition') {
-        file.transforms.push({
-          plugin: plugin.name,
-          message: `skipped: file marked as skipped (${(file as any).__skipped})`,
-          changed: false,
-        })
-        continue
-      }
-
-      const transformCtx = createTransformContext(file, ctx)
-      try {
-        await plugin.transform(transformCtx)
-        file.transforms.push({
-          plugin: plugin.name,
-          message: transformCtx['__lastMessage'] || 'transformed',
-          changed: transformCtx['__changed'] || false,
-        })
-        if (transformCtx['__changed']) {
-          file.changed = true
-          ctx.stats.modifiedFiles++
-        }
-      } catch (e: any) {
-        file.transforms.push({
-          plugin: plugin.name,
-          message: 'transform failed',
-          changed: false,
-          error: e.message,
-        })
-        ctx.stats.errors++
-        // iter-118: 抛错后跳过剩余 plugin (避免后续 plugin 在损坏的 file 上跑, 进一步破坏)
-        //   标记 file 为 failed, 输出原文件副本 (user 至少有原版可用)
-        ;(file as any).__failed = true
-        ;(file as any).__failedPlugin = plugin.name
-        ;(file as any).__failedError = e.message
-        break
-      }
-    }
-  }
+  console.log(chalk.gray('[6/6] 生成代码 + 写盘'))
 
   console.log(chalk.gray('[6/6] 生成代码 + 写盘'))
   const generated = await codegenProject(ctx)
@@ -175,6 +245,16 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
   const reviewItems: ReportItem[] = []
   for (const file of ctx.files.values()) {
     for (const tr of file.transforms) {
+      // iter-122c: 跳过 self-check failed — 源 corruption (或 plugin 写出语法错)
+      // 已 fallback 到原 source, 不算 plugin 错误, 不进 review list
+      if (tr.plugin === 'core/codegen' && tr.message?.includes('self-check failed')) {
+        continue
+      }
+      // iter-122c: 跳过 parser failed — 源文件本身 syntax error, 不是 plugin 错
+      // 已 fallback 到原 source (via __failed lock), 不进 review list
+      if (tr.plugin === 'core/parser' && tr.message?.includes('parse failed')) {
+        continue
+      }
       if (tr.error) {
         reviewItems.push({ file: file.relativePath, plugin: tr.plugin, type: 'error', message: tr.error })
       } else if (tr.plugin === 'manual-review') {

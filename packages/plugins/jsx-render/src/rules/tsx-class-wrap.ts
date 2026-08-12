@@ -1,5 +1,5 @@
 /**
- * 规则: TSX/JSX class component 处理 (iter-120)
+ * 规则: TSX/JSX class component 处理 (iter-120, updated iter-123)
  *
  * Vue 2 TSX class component (vue-property-decorator + JSX):
  *
@@ -13,30 +13,18 @@
  *     }
  *   }
  *
- * Vue 3 兼容写法 (推荐: 保留 JSX, 标记 review):
- *   - 直接使用 @vitejs/plugin-vue-jsx 配合 <script setup lang="tsx">
- *   - Vue 3 仍然支持 JSX 语法 (h() 调用形式)
- *   - 转换路径: 把整个 .tsx 包装成 .vue (含 <script setup lang="tsx">)
- *     或者保持 .tsx + 加 review 提示用户用 @vitejs/plugin-vue-jsx
+ * iter-123 update:
+ *   - ts-decorator 现在支持 .tsx (添加 'jsx' 到 babel parser plugins)
+ *   - 因此 .tsx class component 会被 ts-decorator 自动转换为 <script setup> 形式
+ *   - 本规则只对"ts-decorator 未能处理"的情况 (例如 syntax 太复杂 babel 解析失败) 标 review
+ *   - 若 file.useRawSource === true, 说明 ts-decorator 已改过 source, 不再标 review
  *
- * iter-120 策略:
+ * iter-120 original strategy:
  *   1. 检测 .tsx / .jsx 文件中是否有 @Component + class extends Vue
  *   2. 如果有, 标 review 提示用户:
  *      - Vue 3 + JSX 需要 @vitejs/plugin-vue-jsx
  *      - @Component 装饰器建议手动拆解为 <script setup>
- *   3. 不修改源代码 (ts-decorator 会做转换, 但仅在它的 babel parser 能解析时)
- *
- * 替代方案 (激进): 把整个 .tsx 包成 .vue
- *   <script setup lang="tsx">
- *   ...原始内容...
- *   </script>
- *
- *   但这样用户得手动重命名为 .vue, 也不解决 JSX 解析. 所以 iter-120
- *   选择保守路径: 标 review + 让 ts-decorator 处理
- *
- *   实际上 ts-decorator 不解析 JSX, 所以会 bail. 那我们要 fallback:
- *     - 加更显眼的 review
- *     - 不修改 source (避免破坏)
+ *   3. 不修改源代码
  */
 
 import type { FileNode } from '@vue-migrate/core'
@@ -53,6 +41,12 @@ export function reviewTsxClassComponent(file: FileNode): TsxClassWrapResult {
   let modifications = 0
 
   if (file.kind !== 'tsx' && file.kind !== 'jsx') {
+    return { modifications, changes, reviewItems }
+  }
+
+  // iter-123: 若 ts-decorator 已改过 (useRawSource === true), 不再标 review
+  //   ts-decorator 现在支持 JSX 解析, 成功转换的 .tsx 文件不该再被本规则 flag
+  if ((file as any).useRawSource) {
     return { modifications, changes, reviewItems }
   }
 
@@ -75,15 +69,17 @@ export function reviewTsxClassComponent(file: FileNode): TsxClassWrapResult {
     return { modifications, changes, reviewItems }
   }
 
-  // TSX class with JSX: 标 review
+  // iter-123: 检查是否 @vitejs/plugin-vue-jsx / 已配置 .tsx 处理
+  //   若 setup 已配, 不需要 review
+  // TSX class with JSX: 标 review (仅当 ts-decorator 失败时, 即 source 仍含 @Component + class extends Vue + JSX)
   reviewItems.push(
-    `iter-120: TSX class component with JSX syntax. ts-decorator 不解析 JSX 语法, 自动转换未执行. ` +
-      `建议 (任选一): (1) 用 @vitejs/plugin-vue-jsx + 重命名为 .vue (含 <script setup lang="tsx">); ` +
+    `iter-120: TSX class component with JSX syntax detected. ts-decorator 应该已自动转换, 但 source 仍含 class — ` +
+      `可能 babel 解析失败. 建议: (1) 用 @vitejs/plugin-vue-jsx + 重命名为 .vue (含 <script setup lang="tsx">); ` +
       `(2) 手动把 @Component class 拆为 <script setup>, JSX 改为 h() 调用; ` +
       `(3) 保留 .tsx 文件, 在 vite.config.ts 配置 @vitejs/plugin-vue-jsx, 确保 Vue 3 + JSX 运行时兼容.`,
   )
   modifications++
-  changes.push('TSX class component with JSX: review added (auto-conversion skipped due to JSX parse complexity)')
+  changes.push('TSX class component with JSX: review added (iter-123 fallback for unconverted files)')
 
   return { modifications, changes, reviewItems }
 }

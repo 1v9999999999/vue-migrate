@@ -35,9 +35,9 @@ import '@vue-migrate/plugin-resource-copier'
 import '@vue-migrate/plugin-this-replacer'
 import '@vue-migrate/plugin-vue-extend'  // iter-051 P1: new X().$mount() + setCurrentView 递归 review
 import '@vue-migrate/plugin-jsx-render'  // iter-120: h() signature migration + JSX/TSX support
+import '@vue-migrate/plugin-i18n-migrate'  // iter-121: vue-i18n v8 → v9
+import '@vue-migrate/plugin-antd-vue'  // iter-121: ant-design-vue 1.x → 2.x
 import '@vue-migrate/plugin-ts-decorator'  // iter-119: TS class-based components
-// import '@vue-migrate/plugin-i18n-migrate'  // iter-121: vue-i18n v8 → v9 (cli/package.json not updated yet)
-// import '@vue-migrate/plugin-antd-vue'  // iter-121: ant-design-vue 1.x → 2.x (cli/package.json not updated yet)
 
 const program = new Command()
 

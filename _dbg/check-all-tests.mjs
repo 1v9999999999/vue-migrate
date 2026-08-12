@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
@@ -21,6 +21,7 @@ const testFiles = [
   'packages/plugins/composition/src/__tests__/test-define-emits.ts',
   'packages/plugins/composition/src/__tests__/test-merge-imports.ts',
   'packages/plugins/import-cleaner/src/__tests__/test-import-cleaner.ts',
+  'packages/core/src/__tests__/test-perf.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-install-rewrite.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-vnode-binding.ts',
   'packages/plugins/vue3-directives/src/__tests__/test-directive-auto-register.ts',
@@ -34,12 +35,18 @@ const testFiles = [
   'packages/plugins/vue-extend/src/__tests__/test-vue-extend.ts',
   'packages/plugins/vue-router-v4/src/__tests__/test-wrapper-rename.ts',
   'packages/plugins/vue3-entry/src/__tests__/test-new-x-mount.ts',
+  'packages/plugins/vue3-entry/src/__tests__/test-vue-extend.ts',
   'packages/plugins/composition/src/__tests__/test-recursive-method.mjs',
   'packages/plugins/composition/src/__tests__/test-parent-skip-comments.mjs',
   'packages/plugins/composition/src/__tests__/test-removed-instance-api.mjs',
+  'packages/core/src/__tests__/test-perf.ts',
+  'packages/plugins/ts-decorator/src/__tests__/test-ts-decorator.ts',
+  'packages/plugins/ts-decorator/src/__tests__/test-tsx-class.ts',
   'packages/plugins/jsx-render/src/__tests__/test-h-render.ts',
+  'packages/plugins/jsx-render/src/__tests__/test-tsx-class.ts',
   'packages/plugins/i18n-migrate/src/__tests__/test-i18n-v8.ts',
   'packages/plugins/antd-vue/src/__tests__/test-antd-rename.ts',
+  'packages/plugins/vuex-pinia/src/__tests__/test-pinia-only.mjs',
 ]
 
 let totalPass = 0

@@ -77,6 +77,24 @@ export function selfCheck(file: FileNode): { ok: boolean; error?: string } {
   try {
     if (file.kind === 'vue') {
       parseSfcForCheck(output, { filename: file.path })
+    } else if (file.kind === 'tsx') {
+      // iter-123: .tsx 需 jsx + typescript plugins (otherwise JSX 解析失败)
+      parseBabelForCheck(output, {
+        sourceType: 'module',
+        plugins: ['typescript', 'jsx'],
+      })
+    } else if (file.kind === 'jsx') {
+      // iter-123: .jsx 需 jsx plugin
+      parseBabelForCheck(output, {
+        sourceType: 'module',
+        plugins: ['jsx'],
+      })
+    } else if (file.kind === 'ts') {
+      // iter-123: .ts 需 typescript plugin
+      parseBabelForCheck(output, {
+        sourceType: 'module',
+        plugins: ['typescript'],
+      })
     } else {
       parseBabelForCheck(output, { sourceType: 'module' })
     }
@@ -132,13 +150,26 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
             console.log(code)
             console.log('--- END code ---')
           }
-          file.transforms.push({
-            plugin: 'core/codegen',
-            message: 'self-check failed, skipping',
-            changed: false,
-            error: check.error,
-          })
-          ctx.stats.errors++
+          // iter-122c: source 本身 corruption (或 plugin 写坏) 时, fallback 输出原 source
+          // (user 至少有原文件, 不会被 0 bytes / 损坏产物坑)
+          try {
+            const orig = require('node:fs').readFileSync(file.path, 'utf8')
+            results.set(file.path, orig)
+            // marked with a special message so reviewItems 收集时跳过 (源 corruption 不是 plugin 错)
+            file.transforms.push({
+              plugin: 'core/codegen',
+              message: 'self-check failed, fallback to original source',
+              changed: false,
+            })
+          } catch (e: any) {
+            file.transforms.push({
+              plugin: 'core/codegen',
+              message: 'self-check failed, no original source available',
+              changed: false,
+              error: check.error,
+            })
+            ctx.stats.errors++
+          }
         }
       } catch (e: any) {
         file.transforms.push({

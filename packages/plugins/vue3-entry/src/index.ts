@@ -109,6 +109,15 @@ function _runEntryTransform(ctx) {
     let needsDefineComponentImport = false
     let changed = false
 
+    // ----- 0. iter-122a: Vue.extend chain handling -----
+    //   - Vue.extend({...})            → defineComponent({...})
+    //   - MyComponent.extend({...})    → defineComponent({...}) (mark review for 继承关系丢失)
+    //   - Vue.component('Name', Comp)  → review if not in entry chain
+    //   - new Comp().$mount('#app')    → already covered by iter-052 (in entry branch below)
+    //   必须在 Vue.observable / entry chain 之前跑, 这样 entry chain 检测不会把
+    //   `Vue.extend({...}).$mount('#app')` 误判为 new Vue chain
+    _handleVueExtendChain(ctx)
+
     // ----- 1. Vue.observable(x) → reactive(x) -----
     traverse(file.scriptAst, {
       CallExpression(path: any) {
@@ -687,6 +696,124 @@ function _runEntryTransform(ctx) {
         `[vue3-entry] entry chain → createApp().mount('${mountArg}') (${pluginCount} chained calls)`,
       )
     }
+}
+
+/**
+ * iter-122a: Vue.extend chain handling
+ *
+ * Vue 2 常用模式:
+ *
+ *   // 基础用法
+ *   const MyComponent = Vue.extend({
+ *     template: '<div>{{ msg }}</div>',
+ *     data() { return { msg: 'hi' } }
+ *   })
+ *
+ *   // 链式 — Vue 2 用 Vue.extend 创建 Component, 然后再用 SubComponent = Parent.extend({...}) 继承
+ *   const SubComponent = MyComponent.extend({
+ *     data() { return { msg: 'child' } }
+ *   })
+ *
+ *   // 全局注册
+ *   Vue.component('MyComponent', MyComponent)
+ *
+ *   // 挂载
+ *   new MyComponent().$mount('#app')
+ *
+ * Vue 3 changes:
+ *   - Vue.extend 移除 → use defineComponent
+ *   - Vue.component() 移除 → use app.component() (在 createApp 后链式)
+ *   - new Comp().$mount() 移除 → use createApp(Comp).mount()
+ *
+ * 本函数处理 (在 entry chain 检测之前跑, 不依赖 isEntry):
+ *   1. `Vue.extend({...})` → 直接把 callee 改名为 `defineComponent`
+ *      + 注入 `import { defineComponent } from 'vue'`
+ *   2. `MyComponent.extend({...})` 链式 → 同样改成 `defineComponent({...})`,
+ *      但**继承关系丢失** (Vue 3 没有 `MyComponent.extend()`), 所以同时标 review
+ *      提示用户考虑 `defineComponent({ extends: MyComponent, ... })` 或合并选项
+ *   3. `Vue.component('Name', Comp)` 在**非 entry chain** 文件里 → 标 review
+ *      "改 app.component()"
+ *      (entry chain 文件里这个会被 _runEntryTransform 链化, 跳过)
+ *   4. `new Comp().$mount('#app')` 已经在 iter-052 覆盖 (在 _runEntryTransform 后面),
+ *      这里不再重复
+ */
+function _handleVueExtendChain(ctx: TransformContext): void {
+  const { file, utils } = ctx
+  if (!file.scriptAst) return
+
+  let needsDefineComponentImport = false
+
+  // ----- 1) Vue.extend({...}) / X.extend({...}) chain -----
+  traverse(file.scriptAst, {
+    CallExpression(path: any) {
+      const node = path.node
+      if (!t.isMemberExpression(node.callee)) return
+      if (!t.isIdentifier(node.callee.property, { name: 'extend' })) return
+      if (node.callee.computed) return
+
+      // Case A: Vue.extend({...})
+      if (t.isIdentifier(node.callee.object, { name: 'Vue' })) {
+        path.node.callee = t.identifier('defineComponent')
+        needsDefineComponentImport = true
+        utils.markChanged('Vue.extend({...}) → defineComponent({...})')
+        ctx.log?.(`[vue3-entry/iter-122a] Vue.extend → defineComponent (位置: ${_generateFn(node).code.slice(0, 60)})`)
+        return
+      }
+
+      // Case B: MyComponent.extend({...}) 链式
+      //   - 把 callee 改名为 defineComponent (简单自动转换, 继承关系丢失)
+      //   - 标 review 提示用户考虑用 `extends: MyComponent` 或合并选项
+      if (t.isIdentifier(node.callee.object)) {
+        const parentName = (node.callee.object as t.Identifier).name
+        path.node.callee = t.identifier('defineComponent')
+        needsDefineComponentImport = true
+        utils.markChanged(`${parentName}.extend({...}) → defineComponent({...}) (chain)`)
+        utils.manualReview(
+          `检测到链式 \`${parentName}.extend({...})\` — Vue 2 子类继承模式。\n` +
+          `  Vue 3 已自动转 \`defineComponent({...})\`, 但继承关系丢失 (Vue 3 不支持 .extend())。\n` +
+          `  如果需要保留继承, 改用 \`defineComponent({ extends: ${parentName}, ... })\` 或手动合并 ${parentName} 的选项。`,
+        )
+        return
+      }
+    },
+  })
+
+  // ----- 2) Vue.component('Name', Comp) — 仅在非 entry chain 文件里标 review -----
+  //   检测方式: 扫 ExpressionStatement 顶层 Vue.component('Name', Comp) 调用
+  //   如果当前文件**有** entry chain (isEntryByContent), _runEntryTransform 会把它
+  //   转成 app.component(), 跳过 review (避免重复)
+  const hasEntryChain =
+    /\bnew\s+Vue\s*\(/.test(file.source) ||
+    /(?<![A-Za-z])createApp\s*\(/.test(file.source) ||
+    /\.\$mount\s*\(/.test(file.source)
+
+  if (!hasEntryChain) {
+    traverse(file.scriptAst, {
+      ExpressionStatement(path: any) {
+        const expr = path.node.expression
+        if (
+          !t.isCallExpression(expr) ||
+          !t.isMemberExpression(expr.callee) ||
+          !t.isIdentifier(expr.callee.object, { name: 'Vue' }) ||
+          !t.isIdentifier(expr.callee.property, { name: 'component' }) ||
+          expr.callee.computed
+        ) return
+        // 仅第一个参数是字符串时才有意义 (e.g. 'MyComponent')
+        const nameArg = expr.arguments[0]
+        const compName = nameArg && t.isStringLiteral(nameArg) ? nameArg.value : '???'
+        utils.manualReview(
+          `检测到 \`Vue.component('${compName}', ...)\` (在非 entry 文件) — Vue 2 全局组件注册。\n` +
+          `  Vue 3 等价物: 在 main.js 的 createApp 链上调用 \`app.component('${compName}', ...)\`。\n` +
+          `  如果是插件文件 / 工具库里的全局注册, 改用 \`app.component('${compName}', ...)\` 或在 install(app) 函数里注册。`,
+        )
+        utils.markChanged(`Vue.component('${compName}') (non-entry review)`)
+      },
+    })
+  }
+
+  if (needsDefineComponentImport) {
+    ensureVueImport(file, ['defineComponent'])
+  }
 }
 
 /**

@@ -36,21 +36,23 @@ function extractClass(code: string): any {
   return exp.declaration
 }
 
-function assertContains(name: string, haystack: string, must: string[]): void {
-  const missing = must.filter((s) => !haystack.includes(s))
+function assertContains(name: string, haystack: string | string[] | Set<string>, must: string[]): void {
+  const h = Array.isArray(haystack) ? haystack.join('\n') : (haystack instanceof Set ? [...haystack].join('\n') : haystack)
+  const missing = must.filter((s) => !h.includes(s))
   if (missing.length === 0) {
     pass++
     console.log(`  ✓ ${name}`)
   } else {
     fail++
-    const dump = haystack.length > 500 ? haystack.slice(0, 500) + '...[truncated]' : haystack
-    failures.push(`${name} - missing: ${missing.join(', ')}\n     output (${haystack.length} chars):\n${dump}`)
+    const dump = h.length > 500 ? h.slice(0, 500) + '...[truncated]' : h
+    failures.push(`${name} - missing: ${missing.join(', ')}\n     output (${h.length} chars):\n${dump}`)
     console.log(`  ✗ ${name} - missing: ${missing.join(', ')}`)
   }
 }
 
-function assertNotContains(name: string, haystack: string, mustNot: string[]): void {
-  const present = mustNot.filter((s) => haystack.includes(s))
+function assertNotContains(name: string, haystack: string | string[] | Set<string>, mustNot: string[]): void {
+  const h = Array.isArray(haystack) ? haystack.join('\n') : (haystack instanceof Set ? [...haystack].join('\n') : haystack)
+  const present = mustNot.filter((s) => h.includes(s))
   if (present.length === 0) {
     pass++
     console.log(`  ✓ ${name}`)
@@ -85,7 +87,7 @@ export default class MyComp extends Vue {
   const code = r.setupCode
   assertContains('defineProps emitted', code, ['defineProps'])
   assertContains('prop name with default', code, ['name:', "default: ''"])
-  assertContains('vueImports has defineProps', [...r.vueImports], ['defineProps'])
+  assertContains('vueImports has defineProps', r.vueImports, ['defineProps'])
 }
 
 console.log('\n[basic class with @Component + @Prop (JS mode)]')
@@ -353,9 +355,8 @@ export default class MyComp extends Vue {
 `
   const r = run(input)
   const code = r.setupCode
-  console.log('  DEBUG code:', code)
   assertContains('@State("app", "count") → useStore().state.app.count', code, [
-    "useStore().state['app'].['count']",
+    'useStore().state.app.count',
   ])
 }
 

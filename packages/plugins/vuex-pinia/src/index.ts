@@ -44,6 +44,25 @@ const plugin: TransformPlugin = {
     if (!ctx.file.scriptAst)
     return
     const source = ctx.file.source
+    // iter-122a: Pinia-only project safety — 如果项目里**完全没有 Vuex 痕迹** (没有
+    //   `import ... from 'vuex'` 也没有 `new Vuex.Store(...)`), 但**有 Pinia 痕迹**
+    //   (有 `import ... from 'pinia'`), 那这个项目是纯 Pinia 项目, 跳过整个
+    //   vuex-to-pinia 转换。避免对已经用 Pinia 的项目做无意义的扫描/标记。
+    //
+    // 关键问题: master 195 (vue-element-admin) 已经被迁移过, src/ 里全是
+    //   `import { defineStore } from 'pinia'` (没有 `import Vuex from 'vuex'`),
+    //   老 vuex 文件已经被清掉。 没有这个 short-circuit 的话, vuex-pinia 会
+    //   在每个 file 入口都跑遍所有 detection, 浪费 CPU; 极端情况下还可能误报。
+    //
+    // 缓存: 一次 transform pipeline 跑下来, project 状态不变, 所以 cache 在
+    //   ctx.project 上 (避免每个 file 都重扫整个项目)。
+    const projState = _detectProjectStoreState(ctx)
+    if (projState.isPiniaOnly) {
+      ctx.log?.(
+        `[vuex-pinia/iter-122a] Pinia-only project detected (no vuex imports/usage, but ${projState.piniaFileCount} file(s) import from 'pinia'). 跳过 vuex-to-pinia 转换。`,
+      )
+      return
+    }
     // iter-044a (Bug A2): 模块文件 (src/store/modules/*.js) 也走 vuex 转换
     //   模式: const state = {...}; const mutations = {...}; const actions = {...};
     //         export default { namespaced: true, state, mutations, actions }
@@ -908,6 +927,53 @@ function isVuexModuleFile(filePath: string): boolean {
   // 用反斜杠或正斜杠都兼容
   const norm = filePath.replace(/\\/g, '/')
   return /\/store\/modules\/[^\/]+\.(js|ts)$/.test(norm)
+}
+
+/**
+ * iter-122a: 项目级 store 状态检测
+ *
+ * 检测这个 project 是不是 "Pinia-only":
+ *   - 完全没有任何 Vuex 痕迹 (没有 `import ... from 'vuex'`, 没有 `new Vuex.Store(...)`)
+ *   - 有 Pinia 痕迹 (有 `import ... from 'pinia'`)
+ *
+ * 一旦确定是 Pinia-only, 整个 vuex-pinia transform 可以直接 return (skip),
+ * 没必要再走 vuex→pinia 转换逻辑。
+ *
+ * 缓存: result 放在 ctx.project.__iter122a_state 上, 一次 pipeline 内
+ *       只扫一次 (避免每个 file 入口都重扫整个 project)。
+ */
+function _detectProjectStoreState(ctx: TransformContext): {
+  isPiniaOnly: boolean
+  piniaFileCount: number
+  vuexFileCount: number
+} {
+  const cacheKey = '__iter122a_state'
+  const cached = (ctx.project as any)[cacheKey]
+  if (cached) return cached
+
+  let piniaFileCount = 0
+  let vuexFileCount = 0
+  for (const [, f] of ctx.project.files) {
+    const src = (f && f.source) || ''
+    if (!src) continue
+    // Pinia 痕迹: import { ... } from 'pinia'
+    if (/from\s+['"]pinia['"]/.test(src)) piniaFileCount++
+    // Vuex 痕迹: import ... from 'vuex' 或 new Vuex.Store(...)
+    if (
+      /from\s+['"]vuex['"]/.test(src) ||
+      /\bnew\s+Vuex\.Store\s*\(/.test(src)
+    ) {
+      vuexFileCount++
+    }
+  }
+
+  const state = {
+    isPiniaOnly: vuexFileCount === 0 && piniaFileCount > 0,
+    piniaFileCount,
+    vuexFileCount,
+  }
+  ;(ctx.project as any)[cacheKey] = state
+  return state
 }
 
 /**

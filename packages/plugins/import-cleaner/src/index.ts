@@ -36,7 +36,7 @@ const plugin: TransformPlugin = {
   description:
     'iter-042c: After all transforms, remove unused imports (Vue, vuex, element-ui etc.) to avoid manual cleanup.',
   priority: -1,
-  fileKinds: ['vue', 'js', 'ts'],
+  fileKinds: ['vue', 'js', 'ts', 'tsx', 'jsx'],
 
   transform(ctx) {
     const { file } = ctx

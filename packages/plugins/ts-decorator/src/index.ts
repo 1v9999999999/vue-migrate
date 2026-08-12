@@ -142,7 +142,10 @@ const plugin: TransformPlugin = {
     }
 
     // Parse scriptInner with TypeScript + decorators-legacy + classProperties
-    // (TS + decorator classes need all three)
+    // (TS + decorator classes need all three).
+    // iter-123: also add 'jsx' for .tsx files (so MyTsx.tsx with JSX render() can be parsed).
+    const isTsx = file.kind === 'tsx' ||
+      (file.kind === 'vue' && file.sfc?.script?.lang === 'tsx')
     let ast: any
     try {
       ast = _babelParserParse(scriptInner, {
@@ -156,6 +159,7 @@ const plugin: TransformPlugin = {
           'objectRestSpread',
           'optionalChaining',
           'nullishCoalescingOperator',
+          ...(isTsx ? ['jsx' as const] : []),
         ],
       })
     } catch (e: any) {

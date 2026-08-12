@@ -44,6 +44,19 @@ import {
 const traverse = (_traverse as any).default || _traverse
 const generate = (_generate as any).default || _generate
 
+// iter-122b: 早 return 检测 — 源文件里完全没有 vue3-directives 关心的 pattern
+//   关心的 pattern: ① directive hooks (bind/inserted/update/unbind/componentUpdated)
+//                   ② vnode.context 引用
+//                   ③ install(Vue) 形式
+//                   ④ filters: { ... } option
+//                   ⑤ template filter {{ x | f }}
+//                   ⑥ keycode (e.g. .enter.13)
+//                   ⑦ v-if + v-for on same node
+//                   ⑧ :value + @input (要变 v-model)
+//                   ⑨ keep-alive :include
+//   这 9 类 pattern 都不匹配, 9 个 rule 全是空跑, 直接跳过
+const HAS_DIRECTIVE_PATTERN_RE = /\b(?:bind|inserted|update|componentUpdated|unbind)\s*[:(]|\bvnode\.context|\binstall\s*\(\s*Vue|\bfilters\s*:\s*\{|\{\{[^}]*\|\s*[A-Za-z_$][\w$]*\s*[\}\)]|\.(?:enter|tab|delete|esc|space|up|down|left|right|13|27|32|37|38|39|40|46)\b|v-if[^>]*v-for|v-for[^>]*v-if|:value=.*@input=|<keep-alive[^>]*:include/
+
 const plugin: TransformPlugin = {
   name: 'vue3-directives',
   description:
@@ -54,6 +67,10 @@ const plugin: TransformPlugin = {
 
   transform(ctx) {
     const { file, utils } = ctx
+
+    // iter-122b: 早 return — 没有任何 vue3-directives 关心的 pattern, 9 个 rule 全是空跑
+    //   master 195 估算 60-70% 文件 (简单业务组件) 不含这些 pattern, 节省 ~70ms
+    if (!HAS_DIRECTIVE_PATTERN_RE.test(file.source)) return
 
     // script AST rules
     if (file.scriptAst) {

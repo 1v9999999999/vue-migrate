@@ -78,6 +78,10 @@ const ESM_DEFAULT_TO_NAMED_RULES: CjsDefaultToNamedRule[] = [
   },
 ]
 
+// iter-122b: 早 return 检测 — 源文件里没 import 任何 3rd-party 库, 6 个 rule 全是空跑
+//   关心: echarts / vuedraggable / xlsx / jszip / file-saver / driver.js / element-plus/lib
+const HAS_3RD_PARTY_IMPORT_RE = /from\s+['"](?:echarts|vuedraggable|screenfull|xlsx|jszip|file-saver|driver\.js|element-plus\/lib)\b/
+
 const plugin: TransformPlugin = {
   name: '3rd-party-imports',
   description:
@@ -87,6 +91,9 @@ const plugin: TransformPlugin = {
 
   transform(ctx: TransformContext) {
     if (!ctx.file.scriptAst) return
+    // iter-122b: 早 return — 没有任何 3rd-party 库的 import, 6 个 rule 全是空跑
+    //   master 195 估算 90%+ 文件 (业务组件) 不含这些库的 import
+    if (!HAS_3RD_PARTY_IMPORT_RE.test(ctx.file.source)) return
     // echarts 是高频库, 单独 rule 提供更精准的提示
     const r1 = fixEchartsImports(ctx)
     // iter-048a F3: vuedraggable v2 → v4: default → named { draggable }

@@ -156,7 +156,7 @@ export function convertClassComponentToSetup(
   const fields: ClassFieldDecorated[] = []
   const methods: ClassMethod[] = []
 
-  for (const member of classBody.body) {
+  for (const member of classBody.body as any[]) {
     if (member.type === 'ClassProperty' || member.type === 'PropertyDefinition') {
       // Class field (e.g. `count = 0`, `name: string = ''`)
       const field: ClassField = {
@@ -274,6 +274,7 @@ export function convertClassComponentToSetup(
   const stateNames = new Set<string>()   // @State → state.xxx (via computed)
   const getterNames = new Set<string>()  // @Getter → getters.xxx (via computed)
   const actionNames = new Set<string>()  // @Action → function
+  const computedNames = new Set<string>() // iter-123: class getter method names → computed(xxx), use directly (no .value)
 
   // Process decorated fields: @Prop / @State / @Getter / @Action
   const propEntries: Array<{ name: string; options: string | null }> = []
@@ -360,7 +361,7 @@ export function convertClassComponentToSetup(
         // @State('key') or @State('module.key')
         const argStr = stateDec.args[0] || `'${f.field.name}'`
         // strip outer quotes to embed as object path
-        const innerPath = argStr.replace(/^['"`]|['"`]$/g, '')
+        const innerPath = stripStringQuotes(argStr)
         lines.push(`const ${f.field.name} = computed(() => useStore().state['${innerPath}'])`)
       }
     }
@@ -373,7 +374,7 @@ export function convertClassComponentToSetup(
       if (!getterNames.has(f.field.name)) continue
       const getterDec = f.decorators.find((d) => d.name === 'Getter')!
       const arg = getterDec.args[0] || `'${f.field.name}'`
-      const innerPath = arg.replace(/^['"`]|['"`]$/g, '')
+      const innerPath = stripStringQuotes(arg)
       lines.push(`const ${f.field.name} = computed(() => useStore().getters['${innerPath}'])`)
     }
   }
@@ -384,7 +385,7 @@ export function convertClassComponentToSetup(
       if (!actionNames.has(f.field.name)) continue
       const actionDec = f.decorators.find((d) => d.name === 'Action' || d.name === 'Mutation')!
       const arg = actionDec.args[0] || `'${f.field.name}'`
-      const innerPath = arg.replace(/^['"`]|['"`]$/g, '')
+      const innerPath = stripStringQuotes(arg)
       // const login = (payload) => useStore().dispatch('login', payload)
       // For single-arg dispatch, simpler form:
       lines.push(`const ${f.field.name} = (payload) => useStore().dispatch('${innerPath}', payload)`)
@@ -480,6 +481,13 @@ export function convertClassComponentToSetup(
       methodNames.add(m.name)
     }
   }
+  // iter-123: collect getter method names so this.xxx → xxx (no .value) in other method bodies
+  // (e.g. render() body that uses this.title where title is a class getter → const title = computed(...))
+  for (const m of methods) {
+    if (m.isGetter && !m.isStatic && m.decorators.length === 0 && m.name) {
+      computedNames.add(m.name)
+    }
+  }
 
   // 3g. Emit computed getters
   for (const m of methods) {
@@ -489,7 +497,7 @@ export function convertClassComponentToSetup(
     const body = m.body.trim()
     // Replace this.xxx in body
     const newBody = replaceThisInBody(body, {
-      fieldNames, methodNames, propNames, stateNames, getterNames, actionNames,
+      fieldNames, methodNames, propNames, stateNames, getterNames, actionNames, computedNames,
     })
     lines.push(`const ${m.name} = computed(() => {\n${newBody}\n})`)
   }
@@ -501,7 +509,7 @@ export function convertClassComponentToSetup(
     result.vueImports.add(m.lifecycleHook)
     const body = m.body.trim()
     const newBody = replaceThisInBody(body, {
-      fieldNames, methodNames, propNames, stateNames, getterNames, actionNames,
+      fieldNames, methodNames, propNames, stateNames, getterNames, actionNames, computedNames,
     })
     const cbParams = m.params || '()'
     if (m.isAsync) {
@@ -532,7 +540,7 @@ export function convertClassComponentToSetup(
     }
     const body = m.body.trim()
     const newBody = replaceThisInBody(body, {
-      fieldNames, methodNames, propNames, stateNames, getterNames, actionNames,
+      fieldNames, methodNames, propNames, stateNames, getterNames, actionNames, computedNames,
     })
     const params = stripTypeAnnotations(m.params || '()')
     if (m.isAsync) {
@@ -610,6 +618,20 @@ export function convertClassComponentToSetup(
 // ============================================================
 // Helpers
 // ============================================================
+
+/** Strip surrounding quotes from a string literal source (e.g. `'foo'` → `foo`). */
+function stripStringQuotes(raw: string): string {
+  if (!raw) return raw
+  const trimmed = raw.trim()
+  if (
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith('`') && trimmed.endsWith('`'))
+  ) {
+    return trimmed.slice(1, -1)
+  }
+  return trimmed
+}
 
 /** Get the identifier name from a babel node key (Identifier / StringLiteral / NumericLiteral). */
 function getKeyName(key: any): string {
@@ -770,6 +792,7 @@ interface ThisRewriteContext {
   propNames: Set<string>
   stateNames: Set<string>
   getterNames: Set<string>
+  computedNames: Set<string>
   actionNames: Set<string>
 }
 
@@ -1060,6 +1083,10 @@ function mapThisReplacement(id: string, ctx: ThisRewriteContext): string | null 
   }
   // @State / @Getter — already a computed, use directly
   if (ctx.stateNames.has(id) || ctx.getterNames.has(id)) {
+    return id
+  }
+  // iter-123: class getter method (computed) — use directly (no .value)
+  if (ctx.computedNames && ctx.computedNames.has(id)) {
     return id
   }
   // @Action — already a function
