@@ -1,0 +1,5 @@
+{
+  "cart": "Cart",
+  "items": "no items | one item | {count} items",
+  "apples": "{count} apple | {count} apples"
+}
