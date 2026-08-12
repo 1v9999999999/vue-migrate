@@ -15,6 +15,7 @@ _dbg/
 _dbg2/
 _dbg3/
 _trash/
+packages/core/test-*.mjs
 _old_*/
 _old_222*/
 _old_222_*/

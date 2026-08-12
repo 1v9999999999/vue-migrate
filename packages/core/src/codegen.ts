@@ -11,6 +11,7 @@
 import _generate from '@babel/generator'
 import { parse as parseSfcForCheck } from '@vue/compiler-sfc'
 import { parse as parseBabelForCheck } from '@babel/parser'
+import { readFileSync as _readFileSync } from 'node:fs'
 import type { FileNode, ProjectContext } from './types.js'
 
 // @babel/generator 在 ESM 下是具名导出，兼容 default
@@ -124,7 +125,7 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
     // iter-118: skipped file (Nuxt 特殊函数) 输出原 source 副本 (user 至少有原文件)
     if ((file as any).__skipped && !file.changed) {
       try {
-        const orig = require('node:fs').readFileSync(file.path, 'utf8')
+        const orig = _readFileSync(file.path, 'utf8')
         results.set(file.path, orig)
         file.transforms.push({
           plugin: 'core/skip',
@@ -139,7 +140,7 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
     // iter-118: failed file 仍输出原 source 副本 (plugin 抛错时 user 至少有原文件)
     if ((file as any).__failed) {
       try {
-        const orig = require('node:fs').readFileSync(file.path, 'utf8')
+        const orig = _readFileSync(file.path, 'utf8')
         results.set(file.path, orig)
         file.transforms.push({
           plugin: 'core/fallback',
@@ -159,6 +160,7 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
           results.set(file.path, code)
         } else {
           console.log(`[codegen-DEBUG] selfCheck FAIL: ${file.relativePath} err=${check.error?.slice(0, 200)}`)
+          console.log(`[codegen-DEBUG] output line 6: ${JSON.stringify(code.split('\n')[5])}`)
           if (process.env.DBG_CG) {
             console.log('--- BEGIN code ---')
             console.log(code)
@@ -167,7 +169,7 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
           // iter-122c: source 本身 corruption (或 plugin 写坏) 时, fallback 输出原 source
           // (user 至少有原文件, 不会被 0 bytes / 损坏产物坑)
           try {
-            const orig = require('node:fs').readFileSync(file.path, 'utf8')
+            const orig = _readFileSync(file.path, 'utf8')
             results.set(file.path, orig)
             // marked with a special message so reviewItems 收集时跳过 (源 corruption 不是 plugin 错)
             file.transforms.push({
@@ -176,6 +178,7 @@ export async function codegenProject(ctx: ProjectContext): Promise<Map<string, s
               changed: false,
             })
           } catch (e: any) {
+            console.log(`[codegen-DEBUG] readFileSync FAIL: ${file.relativePath} path=${file.path} err=${e.message}`)
             file.transforms.push({
               plugin: 'core/codegen',
               message: 'self-check failed, no original source available',
