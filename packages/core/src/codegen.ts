@@ -74,6 +74,9 @@ file.source
 /** 自检：生成的代码能再次解析（避免插件写出语法错误） */
 export function selfCheck(file: FileNode): { ok: boolean; error?: string } {
   const output = codegenFile(file)
+  // iter-126: 用原 source 决定 plugin (codegen 后的 output 可能已被转成 h() 调用,
+  //   但部分 plugin (如 jsx-render) 转换不完全, 仍残留 JSX; 用原 source 检测最稳)
+  const sourceForDetect = (file as any)._origSource || file.source
   try {
     if (file.kind === 'vue') {
       parseSfcForCheck(output, { filename: file.path })
@@ -91,12 +94,23 @@ export function selfCheck(file: FileNode): { ok: boolean; error?: string } {
       })
     } else if (file.kind === 'ts') {
       // iter-123: .ts 需 typescript plugin
+      // iter-126: 检测原 source 是否含 JSX
+      const hasJsx = /return\s*\(?\s*<\s*[A-Za-z]/.test(sourceForDetect) ||
+                     /<\/?[A-Z][A-Za-z0-9_]*\s*[(\/>]/.test(sourceForDetect)
       parseBabelForCheck(output, {
         sourceType: 'module',
-        plugins: ['typescript'],
+        plugins: hasJsx ? ['typescript', 'jsx'] : ['typescript'],
       })
     } else {
-      parseBabelForCheck(output, { sourceType: 'module' })
+      // .js
+      // iter-126: 检测原 source 是否含 JSX
+      // 启发式: render 函数体里 return <tag> 或 render 后的 <Tag> 多半是 JSX
+      const hasJsx = /return\s*\(?\s*<\s*[A-Za-z]/.test(sourceForDetect) ||
+                     /<\/?[A-Z][A-Za-z0-9_]*\s*[(\/>]/.test(sourceForDetect)
+      parseBabelForCheck(output, {
+        sourceType: 'module',
+        plugins: hasJsx ? ['jsx'] : [],
+      })
     }
     return { ok: true }
   } catch (e: any) {

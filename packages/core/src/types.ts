@@ -25,6 +25,8 @@ export interface FileNode {
   kind: FileKind
   /** 原始源码 */
   source: string
+  /** 原始 source 的不可变副本, 用于 selfCheck 决定 parser plugin (iter-126) */
+  _origSource?: string
   /** SFC 解析结果（仅 .vue 文件） */
   sfc?: SfcInfo
   /** Babel AST（script 部分） */

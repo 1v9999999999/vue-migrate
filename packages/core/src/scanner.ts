@@ -98,6 +98,7 @@ export async function scanProject(ctx: ProjectContext): Promise<void> {
       relativePath: rel,
       kind,
       source,
+      _origSource: source, // iter-126: 保留原 source 用于 selfCheck 选 parser plugin
       metadata: {
         features: [],
         dependencies: extractDependencies(source),

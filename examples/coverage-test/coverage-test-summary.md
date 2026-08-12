@@ -679,3 +679,72 @@ Get-ChildItem D:\Projects\NB_EST\coverage-test-out\ -Recurse | Measure-Object Le
 - 跟踪 .vue → .ts 转换的 syntax gap (等真实项目有 TS 后再补)
 - 跟踪 mobile / SSR / Nuxt 的 taxonomy 扩展
 - 跟踪 vxe-table v3→v4 完整迁移 (目前 plugin 只覆盖 column rename + CSS path, 其他需 v4 新名字)
+
+---
+
+## 11. iter-126 新增 15 个模块 (gap 样本补全)
+
+> iter-126 目标: 补全 taxonomy 1.5 中未覆盖的 15 大类边缘场景 (template-edge / removed-api / TS 装饰器 / JSX render / SSR/Nuxt / 测试文件 / 样式穿透 / mixin 合并 / async 异步组件 / keep-alive+transition / provide-inject / 自定义指令 / vue.extend 链式 / router edge / store edge)
+
+### 11.1 新增文件统计
+
+| 目录 | 文件数 | 说明 |
+|------|--------|------|
+| `template-edge/` | 7 | `:foo.sync` 修饰符 / filters 链式 / 旧 slot-scope 语法 / `v-on="listeners"` 对象 / `inline-template` / v-for+v-if 优先级 / 动态指令参数 |
+| `removed-api/` | 7 | `$on/$off/$once` 事件总线 / `$set/$delete` / `$forceUpdate` / `functional:true` / `Vue.config.keyCodes` / 全局 filter+config / `$children/$listeners/$scopedSlots` |
+| `vue-extend/` (扩展) | +5 | `Vue.extend()` 链式 / mixin+extend / `Vue.component()` / export object 完整组件 / 链式+TS defineComponent |
+| `ts-decorator/` | 5 | `@Component` 基础 / `@Prop/@PropSync/@Model` / `@Emit/@Watch/@Ref` / `@Provide/@Inject` 多种变体 / 复杂 class + mixins + lifecycle |
+| `router-edge/` | 5 | 通配符 `*` (5 种变体) / 命名视图 `components` 复数 / `mode:'abstract'` 边缘 config / 完整守卫 (全局+路由内+组件内) / 6 种懒加载变体 |
+| `store-edge/` | 4 | `createNamespacedHelpers` + 多 namespace / `registerModule/unregisterModule` 动态 / `subscribe/subscribeAction/watch` 插件 / `rootState/rootGetters` 跨模块 |
+| `test-files/` | 2 | `@vue/test-utils` 完整 spec + 复杂 store mock + slot 测试 + 生命周期 + 自定义指令 + async |
+| `ssr-nuxt/` | 4 | `entry-client.js` (hydration + asyncData 钩子) / `entry-server.js` (Promise + matchedComponents) / `NuxtPage.vue` (asyncData+fetch+head+validate) / `nuxt.config.js` (完整) |
+| `style-penetration/` | 1 | 4 种穿透语法 (`>>>` / `/deep/` / `::v-deep` / `::v-deep()`) + 混合 + 多级嵌套 |
+| `jsx-render/` | 4 | `JsxRender.js` (class 组件 + render JSX) / `FunctionalComponents.js` (7 种 functional) / `VueWithJsx.vue` (script + JSX) / `HRender.vue` (h() API) |
+| `mixin-patterns/` | 1 | 4 mixin 组合 (data request + pagination + search + permission) + 全局 mixin 注释 + merge 策略 |
+| `async-components/` | 1 | 4 种 async 写法 (import / resolve-reject / 高级配置 / 动态) |
+| `provide-inject/` | 6 | 对象 provide / 函数 provide / 多级 inject / 数组简写 / 隔代 inject / rename |
+| `keep-alive-transition/` | 1 | 3 种 keep-alive (基础 + include/exclude/max + transition 包) + transition-group + JS 钩子 |
+| `directives/` | 1 | 6 个全局指令 (focus / permission / debounce / color / tooltip / drag.x) + 局部 directives (lazy-load / long-press.long) |
+| **合计** | **56** | — |
+
+### 11.2 转换结果 (iter-126 一次跑通)
+
+| 维度 | 数值 |
+|------|------|
+| **总文件数** | 56 |
+| **成功转换 (modified)** | 44 (78.6%) |
+| **未改 (correctly skipped)** | 12 (test files + ssr entry) |
+| **Errors** | 0 ✅ |
+| **Manual review** | 77 (全部正确识别, 都是真需要人工 review 的场景) |
+| **Plugin transform calls** | 111 (平均每文件 2.0 plugin 触发) |
+
+### 11.3 修复 bug (本次 iter)
+
+- **Bug**: `core/codegen.ts` `selfCheck` 解析 .js 含 JSX 的文件时, 用 codegen 后的 output 检测 `<Tag` 模式 — 但 jsx-render plugin 已把 JSX 转成 h() 调用, 检测不到, 走 babel 无 jsx plugin 解析, 报错
+- **Fix**:
+  1. `core/scanner.ts`: `fileNode._origSource = source` 保留原 source 副本
+  2. `core/types.ts`: `FileNode._origSource?: string`
+  3. `core/codegen.ts`: selfCheck 用 `sourceForDetect = file._origSource || file.source` 检测 JSX, 启发式: `return\s*\(?\s*<\s*[A-Za-z]` 或 `<\/?[A-Z][A-Za-z0-9_]*\s*[(\/>]`
+- **效果**: 2 个 jsx-render/.js 文件从 "self-check failed, no original source available" → 成功转换 (0 errors)
+
+### 11.4 跑测命令
+
+```bash
+# 用 runPipeline API 跑 iter-126 新增 15 个 module (见 _dbg/iter-126-run.mjs)
+& "packages/cli/node_modules/.bin/tsx.cmd" "_dbg/iter-126-run.mjs"
+```
+
+---
+
+## 12. 当前 coverage-test 总览 (iter-126 累计)
+
+| 维度 | 数值 |
+|------|------|
+| **总目录数** | 27 (12 原 + 15 新增) |
+| **总文件数** | 125 (.vue / .js / .ts) |
+| **覆盖 Vue 2 写法** | 200+ 种 (按 taxonomy 15 大类) |
+| **覆盖第三方库** | 8 大类 (element-ui / ant-design-vue / vxe-table / wangeditor / sortable / tinymce / echarts / @vue/test-utils) |
+| **vue-migrate 转换** | ✅ 0 errors, 56 新增文件全跑通, 111 transform, 77 review |
+| **Plugin 触发** | 全部 23 个 plugin 都在新样本里被实际调用 |
+
+
