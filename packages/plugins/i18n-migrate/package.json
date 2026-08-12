@@ -1,0 +1,19 @@
+{
+  "name": "@vue-migrate/plugin-i18n-migrate",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "iter-121: vue-i18n v8 → v9 migration: detect $t / $i18n / $tc / Vue.use(VueI18n) usage and emit review hints to convert to useI18n() composition API. Auto-rewrites template $t calls when an existing useI18n import is present.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.25.0",
+    "@babel/generator": "^7.25.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

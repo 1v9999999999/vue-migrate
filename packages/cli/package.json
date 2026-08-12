@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "@vue-migrate/cli",
   "version": "0.1.0",
   "type": "module",
@@ -29,6 +29,10 @@
     "@vue-migrate/plugin-resource-copier": "workspace:*",
     "@vue-migrate/plugin-this-replacer": "workspace:*",
     "@vue-migrate/plugin-vue-extend": "workspace:*",
+    "@vue-migrate/plugin-i18n-migrate": "workspace:*",
+    "@vue-migrate/plugin-antd-vue": "workspace:*",
+    "@vue-migrate/plugin-ts-decorator": "workspace:*",
+    "@vue-migrate/plugin-jsx-render": "workspace:*",
     "@vue-migrate/plugin-auto-import-components": "workspace:*",
     "@vue-migrate/plugin-v-model-emit-fixer": "workspace:*",
     "@vue-migrate/plugin-view-fix": "workspace:*",

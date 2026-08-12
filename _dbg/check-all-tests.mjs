@@ -37,6 +37,9 @@ const testFiles = [
   'packages/plugins/composition/src/__tests__/test-recursive-method.mjs',
   'packages/plugins/composition/src/__tests__/test-parent-skip-comments.mjs',
   'packages/plugins/composition/src/__tests__/test-removed-instance-api.mjs',
+  'packages/plugins/jsx-render/src/__tests__/test-h-render.ts',
+  'packages/plugins/i18n-migrate/src/__tests__/test-i18n-v8.ts',
+  'packages/plugins/antd-vue/src/__tests__/test-antd-rename.ts',
 ]
 
 let totalPass = 0

@@ -23,6 +23,9 @@ importers:
       '@vue-migrate/plugin-3rd-party-imports':
         specifier: workspace:*
         version: link:../plugins/3rd-party-imports
+      '@vue-migrate/plugin-antd-vue':
+        specifier: workspace:*
+        version: link:../plugins/antd-vue
       '@vue-migrate/plugin-auto-import-components':
         specifier: workspace:*
         version: link:../plugins/auto-import-components
@@ -32,9 +35,15 @@ importers:
       '@vue-migrate/plugin-elementui':
         specifier: workspace:*
         version: link:../plugins/elementui
+      '@vue-migrate/plugin-i18n-migrate':
+        specifier: workspace:*
+        version: link:../plugins/i18n-migrate
       '@vue-migrate/plugin-import-cleaner':
         specifier: workspace:*
         version: link:../plugins/import-cleaner
+      '@vue-migrate/plugin-jsx-render':
+        specifier: workspace:*
+        version: link:../plugins/jsx-render
       '@vue-migrate/plugin-package-json':
         specifier: workspace:*
         version: link:../plugins/package-json
@@ -47,6 +56,9 @@ importers:
       '@vue-migrate/plugin-this-replacer':
         specifier: workspace:*
         version: link:../plugins/this-replacer
+      '@vue-migrate/plugin-ts-decorator':
+        specifier: workspace:*
+        version: link:../plugins/ts-decorator
       '@vue-migrate/plugin-v-model-emit-fixer':
         specifier: workspace:*
         version: link:../plugins/v-model-emit-fixer
@@ -153,6 +165,28 @@ importers:
         specifier: ^5.5.0
         version: 5.5.2
 
+  packages/plugins/antd-vue:
+    dependencies:
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
   packages/plugins/auto-import-components:
     dependencies:
       '@vue-migrate/core':
@@ -222,6 +256,31 @@ importers:
         specifier: ^5.5.0
         version: 5.5.2
 
+  packages/plugins/i18n-migrate:
+    dependencies:
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
   packages/plugins/import-cleaner:
     dependencies:
       '@babel/generator':
@@ -240,6 +299,31 @@ importers:
         specifier: workspace:*
         version: link:../../core
     devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
+  packages/plugins/jsx-render:
+    dependencies:
+      '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@babel/generator':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/parser':
+        specifier: ^7.25.0
+        version: 7.29.8
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -313,6 +397,25 @@ importers:
         specifier: ^7.25.0
         version: 7.29.8
       '@babel/traverse':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@babel/types':
+        specifier: ^7.25.0
+        version: 7.29.8
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.5.0
+        version: 5.5.2
+
+  packages/plugins/ts-decorator:
+    dependencies:
+      '@babel/parser':
         specifier: ^7.25.0
         version: 7.29.8
       '@babel/types':

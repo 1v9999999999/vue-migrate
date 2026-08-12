@@ -1,0 +1,18 @@
+{
+  "name": "@vue-migrate/plugin-antd-vue",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "iter-121: ant-design-vue 1.x (Vue 2) → 2.x (Vue 3) migration: a-form-model → a-form, v-decorator review, a-modal @click → @ok/@cancel events review, etc.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "@babel/parser": "^7.25.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@vue-migrate/plugin-jsx-render",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "description": "iter-120: Add JSX/TSX support and h() signature migration. Handles render(h) functions, old h() with attrs/domProps/on/class/style, and <template functional> in .vue/.tsx/.jsx files.",
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*",
+    "@babel/traverse": "^7.25.0",
+    "@babel/types": "^7.25.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0",
+    "@babel/parser": "^7.25.0",
+    "@babel/generator": "^7.25.0"
+  }
+}

@@ -25,6 +25,9 @@ const packages = [
   { name: 'resource-copier', path: 'packages/plugins/resource-copier/tsconfig.json' },
   { name: 'this-replacer', path: 'packages/plugins/this-replacer/tsconfig.json' },
   { name: 'vue-extend', path: 'packages/plugins/vue-extend/tsconfig.json' },
+  { name: 'jsx-render', path: 'packages/plugins/jsx-render/tsconfig.json' },
+  { name: 'i18n-migrate', path: 'packages/plugins/i18n-migrate/tsconfig.json' },
+  { name: 'antd-vue', path: 'packages/plugins/antd-vue/tsconfig.json' },
 ]
 
 let totalErrors = 0
