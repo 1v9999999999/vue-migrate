@@ -89,6 +89,36 @@ export function selfCheck(file: FileNode): { ok: boolean; error?: string } {
 export async function codegenProject(ctx: ProjectContext): Promise<Map<string, string>> {
   const results = new Map<string, string>()
   for (const file of ctx.files.values()) {
+    // iter-118: skipped file (Nuxt 特殊函数) 输出原 source 副本 (user 至少有原文件)
+    if ((file as any).__skipped && !file.changed) {
+      try {
+        const orig = require('node:fs').readFileSync(file.path, 'utf8')
+        results.set(file.path, orig)
+        file.transforms.push({
+          plugin: 'core/skip',
+          message: `file skipped (${(file as any).__skipped}), output original source`,
+          changed: false,
+        })
+      } catch (e: any) {
+        // 原文件读不到, 跳过
+      }
+      continue
+    }
+    // iter-118: failed file 仍输出原 source 副本 (plugin 抛错时 user 至少有原文件)
+    if ((file as any).__failed) {
+      try {
+        const orig = require('node:fs').readFileSync(file.path, 'utf8')
+        results.set(file.path, orig)
+        file.transforms.push({
+          plugin: 'core/fallback',
+          message: `plugin ${(file as any).__failedPlugin} failed (${(file as any).__failedError?.slice(0, 100)}), output original source`,
+          changed: false,
+        })
+      } catch (e: any) {
+        // 原文件也读不到, 跳过
+      }
+      continue
+    }
     if (file.changed) {
       try {
         const code = codegenFile(file)

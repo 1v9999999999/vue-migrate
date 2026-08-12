@@ -55,6 +55,13 @@ const plugin: TransformPlugin = {
     if (!ctx.file.sfc?.script)
     return
 
+    // iter-118: file-level skip lock (e.g. Nuxt 特殊函数) — orchestrator 在所有 plugin 之前已标
+    //   整个文件保留原 Vue 2 export default 形式, plugin 不再转换, 也不让后续 plugin 误报 review
+    if ((ctx.file as any).__skipped) {
+      ctx.log(`[composition] file ${ctx.file.relativePath} skipped (${(ctx.file as any).__skipped}), 不转换`)
+      return
+    }
+
     // iter-051: this.$parent + iter-054: Vue 2 移除的 instance API + mixins 字段
     // 全部移到 convertOptionsToSetup 里 (line 1510+ 之后) 推 result.reviewItems, 避免与 plugin transform 重复.
     // 这里不再重复.

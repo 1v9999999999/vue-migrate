@@ -85,6 +85,15 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
   }
 
   console.log(chalk.gray('[5/6] 文件级转换'))
+
+  // iter-118: 早期 file-level lock (在所有 plugin 之前) — 标记 Nuxt 特殊函数文件
+  //   这样后续所有 plugin (包括 this-replacer 在 composition 之前的) 都看到 lock 跳过
+  for (const file of ctx.files.values()) {
+    if (file.source && /\b(asyncData|serverPrefetch|middleware|validate)\s*[:(]/.test(file.source)) {
+      ;(file as any).__skipped = 'nuxt-special-functions'
+    }
+  }
+
   for (const file of ctx.files.values()) {
     if (!file.scriptAst) continue
     for (const plugin of ctx.plugins) {
@@ -93,6 +102,38 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
       // 按 fileKinds 过滤
       if (plugin.fileKinds && !plugin.fileKinds.includes(file.kind)) continue
       if (!plugin.transform) continue
+      // iter-118: 跳过测试文件 (.spec.js / .test.js / .spec.ts / .test.ts / __tests__/)
+      //   测试文件不该被 vue-migrate 转换 (jest/vitest 期望原 Vue 2 语法)
+      const isTestFile = /\.(spec|test)\.[jt]sx?$/.test(file.path) || /[\\/]__tests__[\\/]/.test(file.path)
+      if (isTestFile) {
+        file.transforms.push({
+          plugin: plugin.name,
+          message: 'skipped: test file',
+          changed: false,
+        })
+        continue
+      }
+      // iter-118: file-level lock (composition 设的, 例如 Nuxt 特殊函数), 后续 plugin 看到就 early return
+      //   避免 plugin 扫到 Nuxt asyncData context 里的 this.$route/store.dispatch 等误报 review
+      if ((file as any).__skipped && plugin.name !== 'composition') {
+        file.transforms.push({
+          plugin: plugin.name,
+          message: `skipped: file marked as skipped (${(file as any).__skipped})`,
+          changed: false,
+        })
+        continue
+      }
+
+      // iter-118: file-level skip lock (e.g. Nuxt 特殊函数) — 后续所有 plugin 跳过
+      //   这是 pre-pass 标的 (__skipped), 让 plugin 不再 markChanged, 也不出 review
+      if ((file as any).__skipped && plugin.name !== 'composition') {
+        file.transforms.push({
+          plugin: plugin.name,
+          message: `skipped: file marked as skipped (${(file as any).__skipped})`,
+          changed: false,
+        })
+        continue
+      }
 
       const transformCtx = createTransformContext(file, ctx)
       try {
@@ -114,6 +155,12 @@ export async function runPipeline(opts: OrchestratorOptions): Promise<ProjectCon
           error: e.message,
         })
         ctx.stats.errors++
+        // iter-118: 抛错后跳过剩余 plugin (避免后续 plugin 在损坏的 file 上跑, 进一步破坏)
+        //   标记 file 为 failed, 输出原文件副本 (user 至少有原版可用)
+        ;(file as any).__failed = true
+        ;(file as any).__failedPlugin = plugin.name
+        ;(file as any).__failedError = e.message
+        break
       }
     }
   }
