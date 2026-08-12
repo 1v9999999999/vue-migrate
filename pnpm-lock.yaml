@@ -23,6 +23,9 @@ importers:
       '@vue-migrate/plugin-3rd-party-imports':
         specifier: workspace:*
         version: link:../plugins/3rd-party-imports
+      '@vue-migrate/plugin-amp-escape':
+        specifier: workspace:*
+        version: link:../plugins/amp-escape
       '@vue-migrate/plugin-antd-vue':
         specifier: workspace:*
         version: link:../plugins/antd-vue
@@ -164,6 +167,12 @@ importers:
       typescript:
         specifier: ^5.5.0
         version: 5.5.2
+
+  packages/plugins/amp-escape:
+    dependencies:
+      '@vue-migrate/core':
+        specifier: workspace:*
+        version: link:../../core
 
   packages/plugins/antd-vue:
     dependencies:

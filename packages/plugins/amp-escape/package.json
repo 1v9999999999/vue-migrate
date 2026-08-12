@@ -1,0 +1,12 @@
+{
+  "name": "@vue-migrate/plugin-amp-escape",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "node --import tsx --test src/__tests__/*.ts"
+  },
+  "dependencies": {
+    "@vue-migrate/core": "workspace:*"
+  }
+}

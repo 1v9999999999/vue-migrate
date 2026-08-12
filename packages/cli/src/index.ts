@@ -38,6 +38,7 @@ import '@vue-migrate/plugin-jsx-render'  // iter-120: h() signature migration + 
 import '@vue-migrate/plugin-i18n-migrate'  // iter-121: vue-i18n v8 → v9
 import '@vue-migrate/plugin-antd-vue'  // iter-121: ant-design-vue 1.x → 2.x
 import '@vue-migrate/plugin-ts-decorator'  // iter-119: TS class-based components
+import '@vue-migrate/plugin-amp-escape'  // iter-125: HTML 5 strict & → &amp; in .vue templates
 
 const program = new Command()
 

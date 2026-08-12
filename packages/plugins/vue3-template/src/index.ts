@@ -31,6 +31,7 @@ import { migrateScriptInstances } from './rules/script-instances.js'
 import { removeNativeModifier } from './rules/native-modifier.js'
 import { convertPrefixIconToSlot } from './rules/prefix-icon-to-slot.js'
 import { reviewVAttrsVListeners, autoFixVOnAttrsListeners } from './rules/vbind-vattrs-vlisteners.js'
+import { escapeHtmlEntitiesInTemplates } from './rules/html-entity-escape.js'
 
 const plugin: TransformPlugin = {
   name: 'vue3-template',
@@ -45,6 +46,14 @@ const plugin: TransformPlugin = {
 
     // ========== 模板端规则（仅 .vue 文件） ==========
     if (file.kind === 'vue') {
+      // 0. iter-125: HTML 5 严格 entity-escape 模板里裸 & → &amp;
+      //   必须在所有改 template 的 rule 之前, 避免 regex 把已转义的 &amp; 二次转义
+      const ampResult = escapeHtmlEntitiesInTemplates(file)
+      if (ampResult.changed) {
+        messages.push(`html-entity-escape: ${ampResult.count} 处 & 转义为 &amp;`)
+        utils.markChanged(`html-entity-escape: ${ampResult.count} 处 & 转义为 &amp;`)
+      }
+      // re-derive template 变量 (上面的 file.source 已变)
       // prefer file.sfc.template.content; fallback to regex
       let template: string | null = file.sfc?.template?.content ?? null
       if (template === null) {

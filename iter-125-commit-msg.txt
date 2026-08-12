@@ -1,0 +1,55 @@
+iter-125: critical fixes for vite build + new amp-escape plugin
+
+[核心 bug fix — 让 master 195 out 真正写到 test-vue3-build/src]
+
+1. syncScriptAstToSource 改 file.source 后 mark file.changed=true
+   (sync-script-ast.ts + context.ts)
+   - 之前 sync 改 source 但没 mark changed → codegen 跳过
+   - 导致 102 个 .vue 缺失 (vue-migrate "看到了" 但 codegen 没写)
+
+2. orchestrator 加 templateOnly 标记 — 允许无 <script> 块 .vue 跑 plugin
+   (orchestrator.ts + types.ts)
+   - 之前 if (!file.scriptAst) 跳过整个 plugin, 纯 template .vue 没 amp 转义
+
+3. resource-copier walkAll 扩展到 .css/.scss/.svg/.png 等静态资源
+   (resource-copier/src/index.ts)
+   - 之前只复制 .js/.ts, src/styles/index.scss 等没复制 → vite "ENOENT"
+
+[新 plugin: amp-escape — HTML 5 严格 entity-escape]
+
+4. packages/plugins/amp-escape/ — priority 99, 跑在所有 plugin 之后
+   - 把 <template> 里裸 & 转义为 &amp; (vite 严格 HTML 5, webpack 容忍)
+   - 6 个 unit test 全过
+   - templateOnly: true 标记 (无 script 也跑)
+
+5. packages/plugins/vue3-template/rules/html-entity-escape.ts — 同上规则
+   (供 vue3-template 内部用, 已有 scriptAst 的 .vue)
+   - 8 个 unit test 全过
+
+[vue-router-v4 加 .vue 后缀规则]
+
+6. vue-router-v4 Pass G' — () => import('@/views/...') 自动补 .vue
+   (vue-router-v4/src/index.ts)
+   - 之前 webpack 自动补, vite 严格, 报 "ENOENT"
+
+[test 验证]
+
+- master 195 实测: 57 modified, 0 review, 0 errors, 0 tsc errors (新加 plugin)
+- 6 + 8 + 1 = 15 unit test 通过
+- 0 tsc errors on new code (4 plugin pre-existing @babel/traverse type 错 31 个, 与 iter-125 无关)
+
+[已知遗留: src file 自身 corruption]
+
+master 195 src 多个 .vue 有 corruption (iter-048 / iter-049 hand-fix 残留):
+- 缺 <script setup> 标签
+- <style> 缺 outer { 
+- 重复内容
+- `&` 没转义 (amp-escape 已修)
+- line 109 残 'xport_json_to_excel' 段
+- line 122 'getList();published' 段
+- 等
+
+这些 src corruption 阻止了 test-vue3-build vite build 跑通 (需手修 src).
+composition plugin 写 setup 时 stale loc 也写坏 <script setup> 标签 (iter-117 修了 sync, 但 composition 自己写时也有问题).
+
+后续需要: 修 composition plugin (找根因, 不用 src 直接复制兜底).

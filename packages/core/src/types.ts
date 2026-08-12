@@ -194,6 +194,12 @@ export interface TransformPlugin {
   /** 只处理哪些文件类型，默认全处理 */
   fileKinds?: FileKind[]
   /**
+   * iter-125: 标记 templateOnly 模式, 允许 plugin 跑在无 <script> 块的 .vue
+   *   (e.g. 纯 template file, sfc.script = null, file.scriptAst = null)
+   *   默认 false (跳过无 scriptAst 的 file)
+   */
+  templateOnly?: boolean
+  /**
    * 主转换钩子
    * - 改 AST 即可，不要直接操作 source 字符串
    * - 改完调 utils.markChanged() 和 utils.reparse()

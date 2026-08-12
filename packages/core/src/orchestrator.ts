@@ -94,7 +94,9 @@ async function runOnePluginOnFile(
   if (ctx.config.plugins && !ctx.config.plugins.includes(plugin.name)) return 'skipped'
   // 按 fileKinds 过滤
   if (plugin.fileKinds && !plugin.fileKinds.includes(file.kind)) return 'skipped'
-  if (!file.scriptAst) return 'skipped'
+  // iter-125: amp-escape / 其它 template-only plugin 不需要 scriptAst
+  //   跳过此检查, 允许无 script 块的纯 template file (e.g. <template> only) 也跑
+  if (!file.scriptAst && !plugin.templateOnly) return 'skipped'
   // iter-118: 跳过测试文件
   const isTestFile = /\.(spec|test)\.[jt]sx?$/.test(file.path) || /[\\/]__tests__[\\/]/.test(file.path)
   if (isTestFile) {

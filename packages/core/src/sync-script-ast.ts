@@ -77,7 +77,9 @@ export function syncScriptAstToSource(file: FileNode): void {
   loc.start.offset = absStart
   loc.end.offset = absStart + newScriptBody.length
 
-  // 同步 sfc script.content + loc
-  scriptBlock.content = newScriptBody
-  loc.end.offset = absStart + newScriptBody.length
+  // iter-125: 改 file.source 后必须 mark changed, 否则 codegen 跳 (file.changed=false → 不写 output)
+  //   这就是之前 master 195 102 个 .vue 缺失的根因:
+  //   syncScriptAstToSource 改 source 但没 mark, codegen 看到 file.changed=false 直接跳,
+  //   user 拿到 missing .vue 跑 vite build 报 "Could not resolve".
+  file.changed = true
 }

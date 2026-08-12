@@ -36,6 +36,7 @@
     "@vue-migrate/plugin-auto-import-components": "workspace:*",
     "@vue-migrate/plugin-v-model-emit-fixer": "workspace:*",
     "@vue-migrate/plugin-view-fix": "workspace:*",
+    "@vue-migrate/plugin-amp-escape": "workspace:*",
     "commander": "^12.1.0"
   },
   "devDependencies": {

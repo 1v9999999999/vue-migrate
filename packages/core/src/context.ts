@@ -29,6 +29,8 @@ export function createTransformContext(
     syncScriptAstToSource() {
       try {
         syncScriptAstToSourceImpl(file)
+        // iter-125: sync 改 file.source 后必须 mark changed, 否则 codegen 跳
+        changed = true
         lastMessage = `synced scriptAst → file.source`
       } catch (e: any) {
         lastMessage = `sync failed: ${e.message}`
@@ -63,6 +65,8 @@ export function createTransformContext(
     syncScriptAstToSource: () => {
       try {
         syncScriptAstToSourceImpl(file)
+        // iter-125: 改 source 后必须 mark changed, 否则 codegen 跳
+        changed = true
         lastMessage = `synced scriptAst → file.source`
       } catch (e: any) {
         lastMessage = `sync failed: ${e.message}`

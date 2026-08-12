@@ -174,6 +174,33 @@ function expandGlob(dir: string, pattern: string): string[] {
   }
 }
 
+/** iter-125: 递归 walk 一个 dir, 返回所有 file (递归, skip node_modules/dist/.git) */
+function walkAll(root: string): string[] {
+  const out: string[] = []
+  function walk(dir: string) {
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      // skip noise
+      if (e === 'node_modules' || e === 'dist' || e === '.git' || e === '.nuxt' || e === '.next') continue
+      const p = join(dir, e)
+      let st
+      try { st = statSync(p) } catch { continue }
+      if (st.isDirectory()) {
+        walk(p)
+      } else if (st.isFile()) {
+        out.push(p)
+      }
+    }
+  }
+  walk(root)
+  return out
+}
+
 async function copyIfMissing(src: string, dest: string, dryRun: boolean): Promise<'copied' | 'skipped' | 'planned' | 'error'> {
   try {
     if (existsSync(dest)) return 'skipped'
@@ -268,6 +295,36 @@ const plugin: TransformPlugin = {
           }
         } catch {}
       }
+    }
+
+    // iter-125: 扫整个 src 目录, 找所有未通过 plugin 处理的 .js/.ts/.css/.scss/.svg 等静态资源
+    //   - .js/.ts/.mjs: utility api/utils/store/directive/filter (Vue 2 项目里通常不通过 import 引用, 但产物必须存在)
+    //   - .css/.scss/.sass/.less/.styl: 静态样式 (如 src/styles/index.scss 被 main.js @import)
+    //   - .svg/.png/.jpg/.jpeg/.gif/.webp/.ico: 静态资源 (icons/svg/* 等)
+    //   - .woff/.woff2/.ttf/.eot: 字体
+    //   找 ctx.files 里没记录的 file, 直接 copy 到 outDir.
+    const ctxFiles = new Set<string>()
+    for (const f of ctx.files.values()) {
+      ctxFiles.add(f.path)
+    }
+    const allSrcFiles = walkAll(ctx.root)
+    const STATIC_EXT_RE = /\.(css|sass|scss|less|styl|svg|png|jpg|jpeg|gif|webp|ico|woff2?|ttf|eot|mp3|mp4|webm|wasm)$/i
+    for (const f of allSrcFiles) {
+      if (ctxFiles.has(f)) continue  // 已被 plugin 处理 (会自己写)
+      const lower = f.toLowerCase()
+      const isCode = lower.endsWith('.js') || lower.endsWith('.ts') || lower.endsWith('.mjs') || lower.endsWith('.cjs')
+      const isStatic = STATIC_EXT_RE.test(lower)
+      if (!isCode && !isStatic) continue  // 跳过 .vue / .json / .md / 其它
+      // Skip node_modules, dist, test files
+      if (f.includes('node_modules') || f.includes('__tests__') || f.includes('dist')) continue
+      // Skip test files
+      if (/\.(spec|test)\.[jt]sx?$/.test(f)) continue
+      const srcRel = relative(ctx.root, f)
+      const dest = join(outDir, srcRel)
+      const r = await copyIfMissing(f, dest, dryRun)
+      if (r === 'copied' || r === 'planned') result.copied.push(dest)
+      else if (r === 'skipped') result.skipped.push(dest)
+      else result.errors.push(dest)
     }
 
     // 报告

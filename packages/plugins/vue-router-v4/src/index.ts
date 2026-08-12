@@ -574,6 +574,31 @@ for (const name of names) { const already = existing.specifiers.some(
       },
     })
 
+    // ─── Pass G': 补 .vue 后缀 (vite 兼容) ───
+    //   webpack/vite-plugin-vue 默认会自动尝试 .vue 后缀, 但 vite 默认不自动补.
+    //   () => import('@/views/redirect/index') 在 webpack 下 OK, vite 下报 ENOENT.
+    //   自动补成 () => import('@/views/redirect/index.vue')
+    //   - 已经是 .vue 结尾 → 跳过
+    //   - 是相对路径 (./ 或 ../) → 跳过 (不好判断是 layout / component)
+    //   - 是 @/views/ 或 @/components/ 或 @/layout/ 等典型路径 → 补
+    traverse(ctx.file.scriptAst, {
+      Import(path: any) {
+        const parent = path.parent
+        if (!t.isCallExpression(parent)) return
+        if (parent.callee !== path.node) return
+        if (parent.arguments.length !== 1) return
+        const arg = parent.arguments[0]
+        if (!t.isStringLiteral(arg)) return
+        const src = arg.value
+        if (src.endsWith('.vue') || src.endsWith('.js') || src.endsWith('.ts') || src.endsWith('.mjs')) return
+        // 典型 vue-router 异步 component: @/views/... @/components/... @/layout/...
+        if (!/^@\//.test(src)) return
+        if (!/\/(views|components|layout|pages|modules)\//.test(src)) return
+        arg.value = src + '.vue'
+        changed = true
+      },
+    })
+
     // ─── Pass G: 移除 import Vue（如果 Vue 在该文件中不再使用） ───
     // 简单方式：检查 import Vue from 'vue' 的 default specifier，若文件中没有 'Vue' identifier 引用则移除
     // 如果整个 import 都没 specifier 了，连整条 import 也删掉（避免留下无意义的 `import 'vue';` 副作用 import）
